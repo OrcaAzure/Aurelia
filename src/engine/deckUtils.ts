@@ -30,12 +30,25 @@ export function createLabSession(deck: readonly string[]): LabSession {
     deskInstanceIds: [],
     tableSlots: [null, null],
     tableSlotInstances: [null, null],
+    catalystSlot: null,
+    catalystInstance: null,
     resultPotionId: null,
     brewMessage: null,
     brewOutcome: 'idle',
     pendingBrew: null,
     heatBoostActive: false,
   }
+}
+
+export function countIngredientsInHand(hand: readonly string[]): number {
+  return hand.filter((id) => isIngredientDeckId(id) && !isResidueCard(id)).length
+}
+
+export function canDrawFromLab(lab: LabSession): boolean {
+  if (lab.drawPile.length > 0) {
+    return true
+  }
+  return GAME_CONFIG.reshuffleDiscardWhenEmpty && lab.discardPile.length > 0
 }
 
 export function drawFromLab(lab: LabSession, count = 1): LabSession {
@@ -45,7 +58,7 @@ export function drawFromLab(lab: LabSession, count = 1): LabSession {
   const handInstanceIds = [...lab.handInstanceIds]
 
   for (let i = 0; i < count; i += 1) {
-    if (hand.length >= GAME_CONFIG.maxHandSize) {
+    if (countIngredientsInHand(hand) >= GAME_CONFIG.maxHandSize) {
       break
     }
 

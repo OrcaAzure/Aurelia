@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { audioService } from '@/audio'
 import { GAME_CONFIG } from '@/config'
+import { canDrawFromLab, countIngredientsInHand } from '@/engine/deckUtils'
 import {
   clampToCanvas,
   findOverlappingCard,
@@ -8,6 +9,10 @@ import {
   scatterTransform,
   type CardTransform,
 } from '@/lib/dragDrop'
+import {
+  findCatalystIngredientPairForPotion,
+  findCatalystPotionForIngredientPair,
+} from '@/lib/catalystFusion'
 import { getLabIngredientAvailability } from '@/lib/labAvailability'
 import { getPlayerRank, resolveCard, useGameStore } from '@/stores/gameStore'
 import { BrewVfx, type BrewAnimPhase } from '@/ui/components/BrewVfx'
@@ -31,6 +36,7 @@ export function LaboratoryScreen() {
   const mergeDeskIntoHand = useGameStore((state) => state.mergeDeskIntoHand)
   const prepareLabSession = useGameStore((state) => state.prepareLabSession)
   const fuseHandCards = useGameStore((state) => state.fuseHandCards)
+  const fuseHandCardsWithCatalyst = useGameStore((state) => state.fuseHandCardsWithCatalyst)
   const drawCard = useGameStore((state) => state.drawCard)
   const brew = useGameStore((state) => state.brew)
   const craftPotionCard = useGameStore((state) => state.craftPotionCard)
@@ -55,6 +61,7 @@ export function LaboratoryScreen() {
   const [brewSlots, setBrewSlots] = useState<[string | null, string | null]>([null, null])
   const brewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fusedInstances = useRef<[string, string] | null>(null)
+  const fusedCatalyst = useRef<string | null>(null)
 
   const prevDiscoveredCount = useRef(save.discoveredRecipeIds.length)
   const pendingOutcome = useRef<'success' | 'fail'>('success')
@@ -184,11 +191,15 @@ export function LaboratoryScreen() {
           const next = { ...prev }
           delete next[fused[0]]
           delete next[fused[1]]
+          if (fusedCatalyst.current) {
+            delete next[fusedCatalyst.current]
+          }
           return next
         })
       }
 
       fusedInstances.current = null
+      fusedCatalyst.current = null
 
       if (outcome === 'success') {
         audioService.play('brew-success')
@@ -207,8 +218,12 @@ export function LaboratoryScreen() {
     }, SWIRL_MS)
   }, [lab, isBrewing, brew, save.reagents, syncCardLayout])
 
-  const handleFuse = useCallback(
-    (instanceA: string, instanceB: string) => {
+  const startFusion = useCallback(
+    (
+      instanceA: string,
+      instanceB: string,
+      catalystInstance?: string,
+    ) => {
       if (isBrewing || isMerging || !lab) return
 
       const deckA = resolveCanvasDeckId(lab, instanceA)
@@ -223,7 +238,7 @@ export function LaboratoryScreen() {
 
       if (!isIngredientPair) return
 
-      const transforms = {
+      const transforms: Record<string, CardTransform> = {
         [instanceA]: cardTransforms[instanceA],
         [instanceB]: cardTransforms[instanceB],
       }
@@ -234,7 +249,13 @@ export function LaboratoryScreen() {
         brewTimer.current = null
       }
 
-      fuseHandCards(instanceA, instanceB)
+      if (catalystInstance) {
+        fuseHandCardsWithCatalyst(instanceA, instanceB, catalystInstance)
+        fusedCatalyst.current = catalystInstance
+      } else {
+        fuseHandCards(instanceA, instanceB)
+        fusedCatalyst.current = null
+      }
 
       const fused = useGameStore.getState().lab
       if (
@@ -245,6 +266,7 @@ export function LaboratoryScreen() {
         setIsMerging(false)
         setMergingPair(null)
         setMergeTransforms({})
+        fusedCatalyst.current = null
         return
       }
 
@@ -259,7 +281,39 @@ export function LaboratoryScreen() {
         handleBrew()
       }, MERGE_MS)
     },
-    [isBrewing, isMerging, lab, cardTransforms, fuseHandCards, handleBrew],
+    [
+      isBrewing,
+      isMerging,
+      lab,
+      cardTransforms,
+      fuseHandCards,
+      fuseHandCardsWithCatalyst,
+      handleBrew,
+    ],
+  )
+
+  const handleFuse = useCallback(
+    (instanceA: string, instanceB: string) => {
+      if (!lab) return
+
+      const catalystInstance = findCatalystPotionForIngredientPair(
+        instanceA,
+        instanceB,
+        cardTransforms,
+        getCanvasCardIds(lab),
+        (id) => resolveCanvasDeckId(lab, id),
+      )
+
+      startFusion(instanceA, instanceB, catalystInstance ?? undefined)
+    },
+    [lab, cardTransforms, startFusion],
+  )
+
+  const handleCatalystFuse = useCallback(
+    (catalystInstance: string, instanceA: string, instanceB: string) => {
+      startFusion(instanceA, instanceB, catalystInstance)
+    },
+    [startFusion],
   )
 
   const handleUsePotion = useCallback(
@@ -308,6 +362,26 @@ export function LaboratoryScreen() {
     const clamped = clampToCanvas(transform, canvasRef.current)
     setCardTransforms((prev) => ({ ...prev, [cardId]: clamped }))
   }, [])
+
+  const handleCheckCatalystOverlap = useCallback(
+    (center: { x: number; y: number }, potionInstanceId: string) => {
+      if (!lab) return null
+
+      const potionDeckId = resolveCanvasDeckId(lab, potionInstanceId)
+      if (!potionDeckId || !isPotionDeckId(potionDeckId)) {
+        return null
+      }
+
+      return findCatalystIngredientPairForPotion(
+        potionInstanceId,
+        center,
+        getCanvasCardIds(lab),
+        cardTransforms,
+        (id) => resolveCanvasDeckId(lab, id),
+      )
+    },
+    [lab, cardTransforms],
+  )
 
   const handleCheckOverlap = useCallback(
     (center: { x: number; y: number }, excludeId: string) => {
@@ -387,6 +461,8 @@ export function LaboratoryScreen() {
         <LabDeckPanel
           deckCount={lab.drawPile.length}
           discardCount={lab.discardPile.length}
+          canDraw={canDrawFromLab(lab)}
+          deskFull={countIngredientsInHand(lab.hand) >= GAME_CONFIG.maxHandSize}
           availability={getLabIngredientAvailability(lab)}
           onDraw={() => {
             audioService.play('draw')
@@ -398,7 +474,7 @@ export function LaboratoryScreen() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(196,122,44,0.09),transparent_62%)]" />
 
           <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-parchment/28">
-            Drag potions from rack · Stack ingredients to brew · Tap Use on potions
+            Drag potions from rack · Stack ingredients to brew · Stack potion + pair to catalyze
           </p>
 
           <div className="absolute inset-0 pt-8">
@@ -421,6 +497,8 @@ export function LaboratoryScreen() {
               onMoveCard={handleMoveCard}
               onFuse={handleFuse}
               onCheckOverlap={handleCheckOverlap}
+              onCheckCatalystOverlap={handleCheckCatalystOverlap}
+              onCatalystFuse={handleCatalystFuse}
               onUsePotion={handleUsePotion}
               onReturnPotionToRack={handleReturnPotionToRack}
               onCraft={craftPotionCard}

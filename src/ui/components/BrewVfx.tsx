@@ -35,7 +35,7 @@ export function BrewVfx({ phase, outcome, slotA, slotB }: BrewVfxProps) {
         : 'rgba(196,122,44,0.4)'
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-[160] flex items-center justify-center overflow-hidden">
       <AnimatePresence>
         {phase === 'swirling' && (
           <motion.div

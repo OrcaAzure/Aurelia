@@ -25,6 +25,8 @@ export function ensureLabInstances(lab: LabSession): LabSession {
     deskCards,
     deskInstanceIds,
     handInstanceIds,
+    catalystSlot: lab.catalystSlot ?? null,
+    catalystInstance: lab.catalystInstance ?? null,
   }
 }
 
@@ -37,6 +39,16 @@ export function deckIdForInstance(lab: LabSession, instanceId: string): string |
   const deskIndex = lab.deskInstanceIds.indexOf(instanceId)
   if (deskIndex !== -1) {
     return lab.deskCards[deskIndex]
+  }
+
+  const slotInstances = lab.tableSlotInstances ?? [null, null]
+  const slotIndex = slotInstances.indexOf(instanceId)
+  if (slotIndex !== -1) {
+    return lab.tableSlots[slotIndex] ?? undefined
+  }
+
+  if (lab.catalystInstance === instanceId) {
+    return lab.catalystSlot ?? undefined
   }
 
   return undefined
@@ -169,10 +181,15 @@ export function fusedEntriesFromLab(
   return entries
 }
 
-export function clearFusionSlots(): Pick<LabSession, 'tableSlots' | 'tableSlotInstances'> {
+export function clearFusionSlots(): Pick<
+  LabSession,
+  'tableSlots' | 'tableSlotInstances' | 'catalystSlot' | 'catalystInstance'
+> {
   return {
     tableSlots: [null, null],
     tableSlotInstances: [null, null],
+    catalystSlot: null,
+    catalystInstance: null,
   }
 }
 

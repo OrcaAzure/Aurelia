@@ -20,6 +20,11 @@ interface DeskCardProps {
   onMove: (transform: CardTransform) => void
   onFuse: (targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
+  onCheckCatalystOverlap?: (
+    center: { x: number; y: number },
+    excludeId: string,
+  ) => [string, string] | null
+  onCatalystFuse?: (ingredientA: string, ingredientB: string) => void
   onUse?: () => void
   onReturnToRack?: () => void
   canReturnToRack?: boolean
@@ -35,6 +40,8 @@ export function DeskCard({
   onMove,
   onFuse,
   onCheckOverlap,
+  onCheckCatalystOverlap,
+  onCatalystFuse,
   onUse,
   onReturnToRack,
   canReturnToRack,
@@ -82,6 +89,15 @@ export function DeskCard({
       x: next.x + DESK_CARD_WIDTH / 2,
       y: next.y + DESK_CARD_HEIGHT / 2,
     }
+
+    if (card.category === 'potion' && onCheckCatalystOverlap && onCatalystFuse) {
+      const pair = onCheckCatalystOverlap(center, cardId)
+      if (pair) {
+        onCatalystFuse(pair[0], pair[1])
+        return
+      }
+    }
+
     const overlap = onCheckOverlap(center, cardId)
     if (overlap) {
       onFuse(overlap)

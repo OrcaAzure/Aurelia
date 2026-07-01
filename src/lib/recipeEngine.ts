@@ -56,6 +56,27 @@ const INGREDIENT_RECIPE_LOOKUP = new Map<string, RecipeDefinition>(
 
 const PROPERTY_RECIPES = RECIPES.filter((r) => r.matchType === 'properties')
 
+const CATALYST_RECIPES = RECIPES.filter(
+  (r) => r.matchType === 'catalyst' && r.ingredientIds && r.catalystPotionId,
+)
+
+const CATALYST_RECIPE_LOOKUP = new Map<string, RecipeDefinition>(
+  CATALYST_RECIPES.map((recipe) => [
+    `${ingredientKey(recipe.ingredientIds![0], recipe.ingredientIds![1])}+${recipe.catalystPotionId}`,
+    recipe,
+  ]),
+)
+
+export function findCatalystRecipe(
+  slotA: string,
+  slotB: string,
+  catalystPotionId: string,
+): RecipeDefinition | undefined {
+  return CATALYST_RECIPE_LOOKUP.get(
+    `${ingredientKey(slotA, slotB)}+${catalystPotionId}`,
+  )
+}
+
 function findNearMiss(
   slotA: string,
   slotB: string,
@@ -123,6 +144,40 @@ export function matchRecipe(
     recipe,
     potionName: potion?.name ?? recipe.name,
     message: `Success! Choose to craft ${potion?.name ?? recipe.name} as a card or bottle it for gold.`,
+  }
+}
+
+export function matchCatalystRecipe(
+  slotA: string,
+  slotB: string,
+  catalystPotionId: string,
+): BrewResult {
+  if (slotA === GAME_CONFIG.residueCardId || slotB === GAME_CONFIG.residueCardId) {
+    return {
+      success: false,
+      message: 'Residue cannot be brewed. Use Filter to purge it from your deck.',
+    }
+  }
+
+  const recipe = findCatalystRecipe(slotA, slotB, catalystPotionId)
+  if (!recipe) {
+    const nameA = ingredientDisplayName(slotA)
+    const nameB = ingredientDisplayName(slotB)
+    const catalystName = POTION_MAP.get(catalystPotionId)?.name ?? 'that potion'
+    return {
+      success: false,
+      message: `${nameA}, ${nameB}, and ${catalystName} do not form a catalyzed brew.`,
+    }
+  }
+
+  const potion = POTION_MAP.get(recipe.resultPotionId ?? '')
+  const catalystName = POTION_MAP.get(catalystPotionId)?.name ?? 'catalyst'
+
+  return {
+    success: true,
+    recipe,
+    potionName: potion?.name ?? recipe.name,
+    message: `Catalyst success! ${catalystName} amplified the brew — craft ${potion?.name ?? recipe.name} as a card or bottle it.`,
   }
 }
 

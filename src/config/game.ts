@@ -1,6 +1,6 @@
 export const GAME_CONFIG = {
   handSizeOnLabStart: 5,
-  maxHandSize: 7,
+  maxHandSize: 9,
   maxIngredientDeckSize: 20,
   maxSupportDeckSize: 10,
   maxDeckSize: 30,

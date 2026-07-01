@@ -1,6 +1,6 @@
 export type RecipeOutcome = 'potion-card' | 'transmute'
 
-export type RecipeMatchType = 'ingredients' | 'properties'
+export type RecipeMatchType = 'ingredients' | 'properties' | 'catalyst'
 
 export interface RecipeDefinition {
   id: string
@@ -10,6 +10,8 @@ export interface RecipeDefinition {
     readonly import('@/cards/types').IngredientProperty[],
     readonly import('@/cards/types').IngredientProperty[],
   ]
+  /** Potion id consumed as catalyst (matchType catalyst only). */
+  catalystPotionId?: string
   matchType: RecipeMatchType
   description: string
   hint: string
@@ -378,6 +380,102 @@ export const RECIPES: readonly RecipeDefinition[] = [
     hint: 'Charred root dissolved in pure water…',
     outcome: 'potion-card',
     resultPotionId: 'pot-ash-tonic',
+  },
+  {
+    id: 'rec-cat-vital-mist',
+    name: 'Catalyzed Vital Mist',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-herb', 'ing-glow-moss'],
+    catalystPotionId: 'pot-healing-infusion',
+    description:
+      'A Healing Infusion catalyzes herb and glow moss into a finer restorative mist.',
+    hint: 'A gentle draught poured over living green and cave-light…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-vital-mist',
+  },
+  {
+    id: 'rec-cat-volcano',
+    name: 'Catalyzed Volcano Extract',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-ember', 'ing-obsidian-shard'],
+    catalystPotionId: 'pot-fire-core',
+    description:
+      'A Fire Core ignites ember and obsidian into dangerously concentrated heat.',
+    hint: 'Contained flame meeting volcanic glass, fed by a fire-core catalyst…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-volcano-extract',
+  },
+  {
+    id: 'rec-cat-astral-ink',
+    name: 'Catalyzed Astral Ink',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-living-crystal', 'ing-water'],
+    catalystPotionId: 'pot-mana-solution',
+    description:
+      'Mana Solution sharpens living crystal dissolved in water into luminous astral ink.',
+    hint: 'A pulsing gem in water, quickened by a mana draught…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-astral-ink',
+  },
+  {
+    id: 'rec-cat-void',
+    name: 'Catalyzed Void Tincture',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-nightshade', 'ing-moonpetal'],
+    catalystPotionId: 'pot-shadow-tonic',
+    description:
+      'Shadow Tonic deepens nightshade and moonpetal into void-touched concentrate.',
+    hint: 'Dark petals and silver blooms steeped in shadow…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-void-tincture',
+  },
+  {
+    id: 'rec-cat-sun-elixir',
+    name: 'Catalyzed Sun Elixir',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-charcoal', 'ing-ember'],
+    catalystPotionId: 'pot-forge-tonic',
+    description:
+      'Forge Tonic drives charcoal and ember toward blinding solar potency.',
+    hint: 'Black fuel and flame, intensified by forge heat…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-sun-elixir',
+  },
+  {
+    id: 'rec-cat-deep-tide',
+    name: 'Catalyzed Deep Tide',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-sea-salt', 'ing-water'],
+    catalystPotionId: 'pot-brine-elixir',
+    description:
+      'Brine Elixir condenses sea salt and water into abyssal tide potency.',
+    hint: 'Ocean salt carried in water, concentrated by brine…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-deep-tide',
+  },
+  {
+    id: 'rec-cat-aether',
+    name: 'Catalyzed Aether Breath',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-wind-spore', 'ing-bellflower'],
+    catalystPotionId: 'pot-clarity-draft',
+    description:
+      'Clarity Draft lifts wind spores and bellflower into pure arcane breath.',
+    hint: 'Airborne seeds and chiming petals, cleared by a mind-sharp draft…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-aether-breath',
+  },
+  {
+    id: 'rec-cat-prism',
+    name: 'Catalyzed Prism Draught',
+    matchType: 'catalyst',
+    ingredientIds: ['ing-glow-moss', 'ing-pearl-dust'],
+    catalystPotionId: 'pot-luminous-balm',
+    description:
+      'Luminous Balm fuses glow moss and pearl dust into prismatic radiance.',
+    hint: 'Cave-light and ocean treasure, brightened by a radiant balm…',
+    outcome: 'potion-card',
+    resultPotionId: 'pot-prism-draught',
   },
 ] as const
 

@@ -30,6 +30,15 @@ interface LabDeskProps {
   onMoveCard: (cardId: string, transform: CardTransform) => void
   onFuse: (cardId: string, targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
+  onCheckCatalystOverlap: (
+    center: { x: number; y: number },
+    potionInstanceId: string,
+  ) => [string, string] | null
+  onCatalystFuse: (
+    catalystInstanceId: string,
+    ingredientA: string,
+    ingredientB: string,
+  ) => void
   onUsePotion: (canvasId: string) => void
   onReturnPotionToRack: (canvasId: string) => void
   onCraft: () => void
@@ -56,6 +65,8 @@ export function LabDesk({
   onMoveCard,
   onFuse,
   onCheckOverlap,
+  onCheckCatalystOverlap,
+  onCatalystFuse,
   onUsePotion,
   onReturnPotionToRack,
   onCraft,
@@ -90,6 +101,17 @@ export function LabDesk({
               onMove={(next) => onMoveCard(instanceId, next)}
               onFuse={(targetId) => onFuse(instanceId, targetId)}
               onCheckOverlap={onCheckOverlap}
+              onCheckCatalystOverlap={
+                card.category === 'potion'
+                  ? (center, id) => onCheckCatalystOverlap(center, id)
+                  : undefined
+              }
+              onCatalystFuse={
+                card.category === 'potion'
+                  ? (ingredientA, ingredientB) =>
+                      onCatalystFuse(instanceId, ingredientA, ingredientB)
+                  : undefined
+              }
               onUse={card.category === 'potion' ? () => onUsePotion(instanceId) : undefined}
               canReturnToRack={card.category === 'potion'}
               onReturnToRack={

@@ -3,6 +3,8 @@ import type { IngredientAvailability } from '@/lib/labAvailability'
 interface LabDeckPanelProps {
   deckCount: number
   discardCount: number
+  canDraw: boolean
+  deskFull: boolean
   availability: IngredientAvailability[]
   onDraw: () => void
 }
@@ -10,9 +12,17 @@ interface LabDeckPanelProps {
 export function LabDeckPanel({
   deckCount,
   discardCount,
+  canDraw,
+  deskFull,
   availability,
   onDraw,
 }: LabDeckPanelProps) {
+  const drawTitle = !canDraw
+    ? 'Deck and discard are empty'
+    : deskFull
+      ? 'Desk full — brew ingredients first'
+      : 'Draw a card'
+
   return (
     <aside className="flex w-[8.25rem] shrink-0 flex-col items-center overflow-hidden border-r border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.95),rgba(14,10,8,0.98))] py-4">
       <p className="mb-4 font-display text-[9px] uppercase tracking-[0.35em] text-amber/50">
@@ -22,16 +32,16 @@ export function LabDeckPanel({
       <button
         type="button"
         onClick={onDraw}
-        disabled={deckCount === 0}
+        disabled={!canDraw}
         className="group flex w-full flex-col items-center px-2 disabled:cursor-not-allowed disabled:opacity-40"
-        title={deckCount > 0 ? 'Draw a card' : 'Deck empty'}
+        title={drawTitle}
       >
         <div className="relative flex h-[5.25rem] w-[4rem] items-center justify-center rounded-lg border-2 border-amber/45 bg-[linear-gradient(160deg,#3d2b1f,#1a1410)] shadow-lg transition group-enabled:hover:border-amber-light">
           <span className="font-display text-3xl text-amber-light">{deckCount}</span>
           <div className="pointer-events-none absolute right-0 top-2 h-[4.75rem] w-[3.5rem] translate-x-1 rounded-md border border-amber/15 bg-[#2a1f16]/90" />
         </div>
         <span className="mt-2 text-center text-[10px] uppercase leading-relaxed tracking-widest text-parchment/55 group-enabled:group-hover:text-amber-light/80">
-          {deckCount > 0 ? 'Draw' : 'Empty'}
+          {canDraw ? (deskFull ? 'Desk full' : 'Draw') : 'Empty'}
         </span>
       </button>
 

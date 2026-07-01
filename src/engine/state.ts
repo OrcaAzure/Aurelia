@@ -39,6 +39,8 @@ export interface LabSession {
   deskInstanceIds: string[]
   tableSlots: [string | null, string | null]
   tableSlotInstances: [string | null, string | null]
+  catalystSlot: string | null
+  catalystInstance: string | null
   resultPotionId: string | null
   brewMessage: string | null
   brewOutcome: 'idle' | 'success' | 'fail'
