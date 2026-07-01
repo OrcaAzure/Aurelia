@@ -63,6 +63,8 @@ export function DeskCard({
 
     if (canReturnToRack && onReturnToRack && detectLabRackAtPoint(info.point)) {
       onReturnToRack()
+      x.set(dragOrigin.current.x)
+      y.set(dragOrigin.current.y)
       return
     }
 

@@ -215,27 +215,11 @@ export function LaboratoryScreen() {
       const deckB = resolveCanvasDeckId(lab, instanceB)
       if (!deckA || !deckB) return
 
-      const potionInstanceId = isPotionDeckId(deckA)
-        ? instanceA
-        : isPotionDeckId(deckB)
-          ? instanceB
-          : null
       const isIngredientPair =
         isIngredientDeckId(deckA)
         && isIngredientDeckId(deckB)
         && !isResidueCard(deckA)
         && !isResidueCard(deckB)
-
-      if (potionInstanceId && !isIngredientPair) {
-        audioService.play('click')
-        playPotionCard(potionInstanceId)
-        setCardTransforms((prev) => {
-          const next = { ...prev }
-          delete next[potionInstanceId]
-          return next
-        })
-        return
-      }
 
       if (!isIngredientPair) return
 
@@ -275,7 +259,7 @@ export function LaboratoryScreen() {
         handleBrew()
       }, MERGE_MS)
     },
-    [isBrewing, isMerging, lab, cardTransforms, fuseHandCards, handleBrew, playPotionCard],
+    [isBrewing, isMerging, lab, cardTransforms, fuseHandCards, handleBrew],
   )
 
   const handleUsePotion = useCallback(
@@ -328,12 +312,36 @@ export function LaboratoryScreen() {
   const handleCheckOverlap = useCallback(
     (center: { x: number; y: number }, excludeId: string) => {
       if (!lab) return null
-      return findOverlappingCard(
+
+      const draggedDeckId = resolveCanvasDeckId(lab, excludeId)
+      if (
+        !draggedDeckId
+        || isPotionDeckId(draggedDeckId)
+        || !isIngredientDeckId(draggedDeckId)
+        || isResidueCard(draggedDeckId)
+      ) {
+        return null
+      }
+
+      const overlap = findOverlappingCard(
         center,
         cardTransforms,
         getCanvasCardIds(lab),
         excludeId,
       )
+      if (!overlap) return null
+
+      const targetDeckId = resolveCanvasDeckId(lab, overlap)
+      if (
+        !targetDeckId
+        || isPotionDeckId(targetDeckId)
+        || !isIngredientDeckId(targetDeckId)
+        || isResidueCard(targetDeckId)
+      ) {
+        return null
+      }
+
+      return overlap
     },
     [lab, cardTransforms],
   )
@@ -390,7 +398,7 @@ export function LaboratoryScreen() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(196,122,44,0.09),transparent_62%)]" />
 
           <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-parchment/28">
-            Drag potions from rack · Stack ingredients to brew
+            Drag potions from rack · Stack ingredients to brew · Tap Use on potions
           </p>
 
           <div className="absolute inset-0 pt-8">

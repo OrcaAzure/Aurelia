@@ -627,12 +627,11 @@ export function mergeDeskIntoHand(state: GameRuntimeState): GameRuntimeState {
     handInstanceIds.push(lab.deskInstanceIds[index])
   }
 
-  const [slotA, slotB] = lab.tableSlots
-  const withReturned = pushCardsToHand(
-    { ...lab, hand, handInstanceIds },
-    slotA,
-    slotB,
-  )
+  const labWithDeskMerged = { ...lab, hand, handInstanceIds }
+  const fusedToRestore = fusedEntriesFromLab(labWithDeskMerged)
+  const withReturned = fusedToRestore.length > 0
+    ? restoreFusedInstancesToHand(labWithDeskMerged, fusedToRestore)
+    : { hand, handInstanceIds }
 
   return {
     ...state,
