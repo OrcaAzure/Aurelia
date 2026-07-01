@@ -102,10 +102,19 @@ export function shouldPlaceOnCanvas(_point: { x: number; y: number }): boolean {
   return true
 }
 
-/** @deprecated */
-export function detectLabDeskAtPoint(point: { x: number; y: number }): boolean {
+export function detectLabCanvasAtPoint(point: { x: number; y: number }): boolean {
   const elements = document.elementsFromPoint(point.x, point.y)
   return elements.some((element) => element.closest('[data-lab-canvas]'))
+}
+
+export function detectLabRackAtPoint(point: { x: number; y: number }): boolean {
+  const elements = document.elementsFromPoint(point.x, point.y)
+  return elements.some((element) => element.closest('[data-lab-rack]'))
+}
+
+/** @deprecated */
+export function detectLabDeskAtPoint(point: { x: number; y: number }): boolean {
+  return detectLabCanvasAtPoint(point)
 }
 
 /** @deprecated */

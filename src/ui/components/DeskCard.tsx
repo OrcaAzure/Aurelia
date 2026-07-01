@@ -4,6 +4,7 @@ import type { GameCard } from '@/cards/types'
 import {
   DESK_CARD_HEIGHT,
   DESK_CARD_WIDTH,
+  detectLabRackAtPoint,
   type CardTransform,
 } from '@/lib/dragDrop'
 import { Card } from '@/ui/components/Card'
@@ -20,6 +21,8 @@ interface DeskCardProps {
   onFuse: (targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
   onUse?: () => void
+  onReturnToRack?: () => void
+  canReturnToRack?: boolean
 }
 
 export function DeskCard({
@@ -33,6 +36,8 @@ export function DeskCard({
   onFuse,
   onCheckOverlap,
   onUse,
+  onReturnToRack,
+  canReturnToRack,
 }: DeskCardProps) {
   const x = useMotionValue(transform.x)
   const y = useMotionValue(transform.y)
@@ -55,6 +60,11 @@ export function DeskCard({
   const handleDragEnd = (_: unknown, info: PanInfo) => {
     setIsDragging(false)
     if (disabled || flipped) return
+
+    if (canReturnToRack && onReturnToRack && detectLabRackAtPoint(info.point)) {
+      onReturnToRack()
+      return
+    }
 
     const next: CardTransform = {
       x: dragOrigin.current.x + info.offset.x,

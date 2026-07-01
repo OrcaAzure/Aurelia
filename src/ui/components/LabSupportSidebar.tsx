@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { isTechniqueDeckId, type GameCard } from '@/cards/types'
 import { isResidueCard } from '@/engine/deckUtils'
+import type { RackPotionEntry } from '@/ui/components/LabSupportTray'
 import { Card } from '@/ui/components/Card'
+import { RackDraggablePotion } from '@/ui/components/RackDraggablePotion'
 
 interface LabSupportSidebarProps {
   entries: { id: string; card: GameCard }[]
+  rackPotions: RackPotionEntry[]
+  resolveCard: (id: string) => GameCard | undefined
+  onPlacePotionOnDesk: (instanceId: string, point: { x: number; y: number }) => void
   onUseTechnique: (id: string) => void
   onDiscard: (id: string) => void
 }
@@ -60,29 +65,58 @@ function SidebarCardSlot({
 
 export function LabSupportSidebar({
   entries,
+  rackPotions,
+  resolveCard,
+  onPlacePotionOnDesk,
   onUseTechnique,
   onDiscard,
 }: LabSupportSidebarProps) {
   const techniques = entries.filter(({ id }) => isTechniqueDeckId(id))
   const residue = entries.filter(({ id }) => isResidueCard(id))
-  const hasContent = techniques.length + residue.length > 0
+  const hasContent = rackPotions.length + techniques.length + residue.length > 0
 
   return (
-    <aside className="flex w-[8.75rem] shrink-0 flex-col overflow-hidden border-l border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.98),rgba(14,10,8,1))]">
+    <aside
+      data-lab-rack
+      className="flex w-[8.75rem] shrink-0 flex-col overflow-hidden border-l border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.98),rgba(14,10,8,1))]"
+    >
       <div className="shrink-0 border-b border-amber/10 px-3 py-3">
         <p className="font-display text-[9px] uppercase tracking-[0.32em] text-amber/55">
           Rack
         </p>
         <p className="mt-0.5 text-[9px] leading-relaxed text-parchment/38">
-          Techniques & residue
+          Drag potions to the desk
         </p>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-2.5 py-3">
         {!hasContent && (
           <p className="px-1 text-center text-[10px] leading-relaxed text-parchment/35">
-            Brew to fill your rack. Potions scatter on the desk.
+            Brew to fill your rack.
           </p>
+        )}
+
+        {rackPotions.length > 0 && (
+          <section>
+            <p className="mb-2 px-0.5 text-[8px] uppercase tracking-widest text-vial/65">
+              Potions
+            </p>
+            <div className="flex flex-col items-center gap-3">
+              {rackPotions.map(({ instanceId, deckId }) => {
+                const card = resolveCard(deckId)
+                if (!card) return null
+                return (
+                  <div key={instanceId} className="w-[7.25rem] shrink-0">
+                    <RackDraggablePotion
+                      instanceId={instanceId}
+                      card={card}
+                      onPlaceOnDesk={onPlacePotionOnDesk}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </section>
         )}
 
         {techniques.length > 0 && (

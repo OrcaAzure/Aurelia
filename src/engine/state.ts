@@ -33,8 +33,10 @@ export interface GameSaveData {
 export interface LabSession {
   drawPile: string[]
   hand: string[]
+  handInstanceIds: string[]
   discardPile: string[]
   deskCards: string[]
+  deskInstanceIds: string[]
   tableSlots: [string | null, string | null]
   resultPotionId: string | null
   brewMessage: string | null

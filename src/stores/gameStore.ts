@@ -22,7 +22,9 @@ import {
   openJournal,
   placeCardInSlot,
   placeCardOnDesk,
+  placePotionOnDesk,
   returnDeskCardToHand,
+  returnPotionToRack,
   fuseDeskCards,
   fuseHandCards,
   mergeDeskIntoHand,
@@ -53,16 +55,18 @@ type GameStore = GameRuntimeState & {
   selectCard: (cardId: string | null) => void
   placeCardInSlot: (cardId: string, slotIndex: 0 | 1) => void
   placeCardOnDesk: (cardId: string) => void
+  placePotionOnDesk: (instanceId: string) => void
   returnDeskCardToHand: (cardId: string) => void
+  returnPotionToRack: (instanceId: string) => void
   fuseDeskCards: (cardA: string, cardB: string) => void
-  fuseHandCards: (cardA: string, cardB: string) => void
+  fuseHandCards: (instanceA: string, instanceB: string) => void
   mergeDeskIntoHand: () => void
   removeCardFromSlot: (slotIndex: 0 | 1) => void
   drawCard: () => void
   brew: () => void
   craftPotionCard: () => void
   bottlePotion: () => void
-  playPotionCard: (deckId: string) => void
+  playPotionCard: (instanceId: string) => void
   playTechniqueCard: (deckId: string) => void
   clearBrewMessage: () => void
   discardFromHand: (deckId: string) => void
@@ -90,16 +94,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
   placeCardInSlot: (cardId, slotIndex) =>
     set(placeCardInSlot(get(), cardId, slotIndex)),
   placeCardOnDesk: (cardId) => set(placeCardOnDesk(get(), cardId)),
+  placePotionOnDesk: (instanceId) => set(placePotionOnDesk(get(), instanceId)),
   returnDeskCardToHand: (cardId) => set(returnDeskCardToHand(get(), cardId)),
+  returnPotionToRack: (instanceId) => set(returnPotionToRack(get(), instanceId)),
   fuseDeskCards: (cardA, cardB) => set(fuseDeskCards(get(), cardA, cardB)),
-  fuseHandCards: (cardA, cardB) => set(fuseHandCards(get(), cardA, cardB)),
+  fuseHandCards: (instanceA, instanceB) => set(fuseHandCards(get(), instanceA, instanceB)),
   mergeDeskIntoHand: () => set(mergeDeskIntoHand(get())),
   removeCardFromSlot: (slotIndex) => set(removeCardFromSlot(get(), slotIndex)),
   drawCard: () => set(drawCard(get())),
   brew: () => set(brew(get())),
   craftPotionCard: () => set(craftPotionCard(get())),
   bottlePotion: () => set(bottlePotion(get())),
-  playPotionCard: (deckId) => set(playPotionCard(get(), deckId)),
+  playPotionCard: (instanceId) => set(playPotionCard(get(), instanceId)),
   playTechniqueCard: (deckId) => set(playTechniqueCard(get(), deckId)),
   clearBrewMessage: () => set(clearBrewMessage(get())),
   discardFromHand: (deckId) => set(discardFromHand(get(), deckId)),

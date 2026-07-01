@@ -4,6 +4,7 @@ import { GAME_CONFIG } from '@/config'
 import {
   clampToCanvas,
   findOverlappingCard,
+  pointToCanvasPosition,
   scatterTransform,
   type CardTransform,
 } from '@/lib/dragDrop'
@@ -14,7 +15,7 @@ import { LabDeckPanel } from '@/ui/components/LabDeckPanel'
 import { LabDesk } from '@/ui/components/LabDesk'
 import { isIngredientDeckId, isPotionDeckId } from '@/cards/types'
 import { isResidueCard } from '@/engine/deckUtils'
-import { getCanvasCardIds } from '@/ui/components/LabSupportTray'
+import { resolveCanvasDeckId, getCanvasCardIds, getRackPotionEntries } from '@/ui/components/LabSupportTray'
 import { LabSupportSidebar } from '@/ui/components/LabSupportSidebar'
 import { LaboratoryTopBar } from '@/ui/components/LaboratoryTopBar'
 
@@ -34,6 +35,8 @@ export function LaboratoryScreen() {
   const craftPotionCard = useGameStore((state) => state.craftPotionCard)
   const bottlePotion = useGameStore((state) => state.bottlePotion)
   const playPotionCard = useGameStore((state) => state.playPotionCard)
+  const placePotionOnDesk = useGameStore((state) => state.placePotionOnDesk)
+  const returnPotionToRack = useGameStore((state) => state.returnPotionToRack)
   const playTechniqueCard = useGameStore((state) => state.playTechniqueCard)
   const discardFromHand = useGameStore((state) => state.discardFromHand)
   const clearBrewMessage = useGameStore((state) => state.clearBrewMessage)
@@ -79,20 +82,22 @@ export function LaboratoryScreen() {
     prevDiscoveredCount.current = save.discoveredRecipeIds.length
   }, [save.discoveredRecipeIds.length])
 
-  const canvasCardIds = lab ? getCanvasCardIds(lab.hand) : []
+  const canvasCardIds = lab ? getCanvasCardIds(lab) : []
+  const rackPotions = lab ? getRackPotionEntries(lab) : []
 
   const syncCardLayout = useCallback(() => {
     if (!lab) return
     const canvas = canvasRef.current
     const canvasW = canvas?.clientWidth ?? 600
     const canvasH = canvas?.clientHeight ?? 500
+    const ids = getCanvasCardIds(lab)
     const zUpdates: Record<string, number> = {}
 
     setCardTransforms((prev) => {
       const next = { ...prev }
       let scatterIndex = 0
 
-      for (const id of canvasCardIds) {
+      for (const id of ids) {
         if (!next[id]) {
           next[id] = scatterTransform(scatterIndex, canvasW, canvasH)
           zCounter.current += 1
@@ -102,10 +107,11 @@ export function LaboratoryScreen() {
       }
 
       for (const id of Object.keys(next)) {
-        if (!canvasCardIds.includes(id)) {
+        if (!ids.includes(id)) {
           delete next[id]
         }
       }
+
       return next
     })
 
@@ -117,14 +123,14 @@ export function LaboratoryScreen() {
       const next = { ...prev }
       let changed = false
       for (const id of Object.keys(next)) {
-        if (!canvasCardIds.includes(id)) {
+        if (!ids.includes(id)) {
           delete next[id]
           changed = true
         }
       }
       return changed ? next : prev
     })
-  }, [lab, canvasCardIds])
+  }, [lab])
 
   useEffect(() => {
     syncCardLayout()
@@ -186,26 +192,30 @@ export function LaboratoryScreen() {
   }, [lab, isBrewing, brew, save.reagents, syncCardLayout])
 
   const handleFuse = useCallback(
-    (cardA: string, cardB: string) => {
-      if (isBrewing || isMerging) return
+    (instanceA: string, instanceB: string) => {
+      if (isBrewing || isMerging || !lab) return
 
-      const potionId = isPotionDeckId(cardA)
-        ? cardA
-        : isPotionDeckId(cardB)
-          ? cardB
+      const deckA = resolveCanvasDeckId(lab, instanceA)
+      const deckB = resolveCanvasDeckId(lab, instanceB)
+      if (!deckA || !deckB) return
+
+      const potionInstanceId = isPotionDeckId(deckA)
+        ? instanceA
+        : isPotionDeckId(deckB)
+          ? instanceB
           : null
       const isIngredientPair =
-        isIngredientDeckId(cardA)
-        && isIngredientDeckId(cardB)
-        && !isResidueCard(cardA)
-        && !isResidueCard(cardB)
+        isIngredientDeckId(deckA)
+        && isIngredientDeckId(deckB)
+        && !isResidueCard(deckA)
+        && !isResidueCard(deckB)
 
-      if (potionId && !isIngredientPair) {
+      if (potionInstanceId && !isIngredientPair) {
         audioService.play('click')
-        playPotionCard(potionId)
+        playPotionCard(potionInstanceId)
         setCardTransforms((prev) => {
           const next = { ...prev }
-          delete next[potionId]
+          delete next[potionInstanceId]
           return next
         })
         return
@@ -214,23 +224,23 @@ export function LaboratoryScreen() {
       if (!isIngredientPair) return
 
       const transforms = {
-        [cardA]: cardTransforms[cardA],
-        [cardB]: cardTransforms[cardB],
+        [instanceA]: cardTransforms[instanceA],
+        [instanceB]: cardTransforms[instanceB],
       }
-      if (!transforms[cardA] || !transforms[cardB]) return
+      if (!transforms[instanceA] || !transforms[instanceB]) return
 
       if (brewTimer.current) {
         clearTimeout(brewTimer.current)
         brewTimer.current = null
       }
 
-      fuseHandCards(cardA, cardB)
+      fuseHandCards(instanceA, instanceB)
 
       const fused = useGameStore.getState().lab
       if (
         !fused
-        || fused.tableSlots[0] !== cardA
-        || fused.tableSlots[1] !== cardB
+        || fused.tableSlots[0] !== deckA
+        || fused.tableSlots[1] !== deckB
       ) {
         setIsMerging(false)
         setMergingPair(null)
@@ -238,15 +248,15 @@ export function LaboratoryScreen() {
         return
       }
 
-      setMergingPair([cardA, cardB])
+      setMergingPair([deckA, deckB])
       setMergeTransforms(transforms)
       setIsMerging(true)
       audioService.play('click')
 
       setCardTransforms((prev) => {
         const next = { ...prev }
-        delete next[cardA]
-        delete next[cardB]
+        delete next[instanceA]
+        delete next[instanceB]
         return next
       })
 
@@ -255,21 +265,48 @@ export function LaboratoryScreen() {
         handleBrew()
       }, MERGE_MS)
     },
-    [isBrewing, isMerging, cardTransforms, fuseHandCards, handleBrew, playPotionCard],
+    [isBrewing, isMerging, lab, cardTransforms, fuseHandCards, handleBrew, playPotionCard],
   )
 
   const handleUsePotion = useCallback(
-    (cardId: string) => {
+    (instanceId: string) => {
       if (isBrewing || isMerging) return
       audioService.play('click')
-      playPotionCard(cardId)
+      playPotionCard(instanceId)
       setCardTransforms((prev) => {
         const next = { ...prev }
-        delete next[cardId]
+        delete next[instanceId]
         return next
       })
     },
     [isBrewing, isMerging, playPotionCard],
+  )
+
+  const handleReturnPotionToRack = useCallback(
+    (instanceId: string) => {
+      if (isBrewing || isMerging) return
+      returnPotionToRack(instanceId)
+      setCardTransforms((prev) => {
+        const next = { ...prev }
+        delete next[instanceId]
+        return next
+      })
+    },
+    [isBrewing, isMerging, returnPotionToRack],
+  )
+
+  const handlePlacePotionFromRack = useCallback(
+    (instanceId: string, point: { x: number; y: number }) => {
+      if (isBrewing || isMerging || !canvasRef.current) return
+      audioService.play('draw')
+      placePotionOnDesk(instanceId)
+
+      const transform = pointToCanvasPosition(point, canvasRef.current)
+      setCardTransforms((prev) => ({ ...prev, [instanceId]: transform }))
+      zCounter.current += 1
+      setZOrder((prev) => ({ ...prev, [instanceId]: zCounter.current }))
+    },
+    [isBrewing, isMerging, placePotionOnDesk],
   )
 
   const handleMoveCard = useCallback((cardId: string, transform: CardTransform) => {
@@ -284,11 +321,16 @@ export function LaboratoryScreen() {
       return findOverlappingCard(
         center,
         cardTransforms,
-        getCanvasCardIds(lab.hand),
+        getCanvasCardIds(lab),
         excludeId,
       )
     },
     [lab, cardTransforms],
+  )
+
+  const resolveCanvasDeck = useCallback(
+    (instanceId: string) => (lab ? resolveCanvasDeckId(lab, instanceId) : undefined),
+    [lab],
   )
 
   if (!lab) {
@@ -338,7 +380,7 @@ export function LaboratoryScreen() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(196,122,44,0.09),transparent_62%)]" />
 
           <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-parchment/28">
-            Drag cards · Stack ingredients to brew · Stack potion to use
+            Drag potions from rack · Stack ingredients to brew
           </p>
 
           <div className="absolute inset-0 pt-8">
@@ -356,11 +398,13 @@ export function LaboratoryScreen() {
               brewOutcome={lab.brewOutcome}
               pendingBrew={lab.pendingBrew}
               resolveCard={resolveCard}
+              resolveCanvasDeckId={resolveCanvasDeck}
               onFocusCard={bringToFront}
               onMoveCard={handleMoveCard}
               onFuse={handleFuse}
               onCheckOverlap={handleCheckOverlap}
               onUsePotion={handleUsePotion}
+              onReturnPotionToRack={handleReturnPotionToRack}
               onCraft={craftPotionCard}
               onBottle={bottlePotion}
               onDismissMessage={clearBrewMessage}
@@ -377,6 +421,9 @@ export function LaboratoryScreen() {
 
         <LabSupportSidebar
           entries={handEntries}
+          rackPotions={rackPotions}
+          resolveCard={resolveCard}
+          onPlacePotionOnDesk={handlePlacePotionFromRack}
           onUseTechnique={(cardId) => {
             audioService.play('click')
             playTechniqueCard(cardId)

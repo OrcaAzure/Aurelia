@@ -5,6 +5,7 @@ import {
   isSupportDeckId,
   isTechniqueDeckId,
 } from '@/cards/types'
+import { nextCardInstanceId } from '@/engine/labInstances'
 import type { GameSaveData, LabSession } from '@/engine/state'
 
 function shuffle<T>(items: readonly T[]): T[] {
@@ -23,8 +24,10 @@ export function createLabSession(deck: readonly string[]): LabSession {
   return {
     drawPile,
     hand,
+    handInstanceIds: hand.map(() => nextCardInstanceId()),
     discardPile: [],
     deskCards: [],
+    deskInstanceIds: [],
     tableSlots: [null, null],
     resultPotionId: null,
     brewMessage: null,
@@ -38,6 +41,7 @@ export function drawFromLab(lab: LabSession, count = 1): LabSession {
   let drawPile = [...lab.drawPile]
   let discardPile = [...lab.discardPile]
   const hand = [...lab.hand]
+  const handInstanceIds = [...lab.handInstanceIds]
 
   for (let i = 0; i < count; i += 1) {
     if (hand.length >= GAME_CONFIG.maxHandSize) {
@@ -56,9 +60,10 @@ export function drawFromLab(lab: LabSession, count = 1): LabSession {
     const [card, ...rest] = drawPile
     drawPile = rest
     hand.push(card)
+    handInstanceIds.push(nextCardInstanceId())
   }
 
-  return { ...lab, drawPile, discardPile, hand }
+  return { ...lab, drawPile, discardPile, hand, handInstanceIds }
 }
 
 export function addPotionToInventory(

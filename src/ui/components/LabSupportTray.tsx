@@ -1,38 +1,52 @@
+import type { LabSession } from '@/engine/state'
 import { isIngredientDeckId, isPotionDeckId } from '@/cards/types'
+import { deckIdForInstance, ensureLabInstances } from '@/engine/labInstances'
 import { isResidueCard } from '@/engine/deckUtils'
 
-function collectUniqueCanvasIds(
-  hand: readonly string[],
-  include: (id: string) => boolean,
-): string[] {
-  const seen = new Set<string>()
+/** Ingredient cards scattered on the lab canvas. */
+export function getIngredientTableIds(lab: LabSession): string[] {
+  const session = ensureLabInstances(lab)
   const ids: string[] = []
 
-  for (const id of hand) {
-    if (!include(id) || seen.has(id)) {
-      continue
+  for (let index = 0; index < session.hand.length; index += 1) {
+    const deckId = session.hand[index]
+    if (isIngredientDeckId(deckId) && !isResidueCard(deckId)) {
+      ids.push(session.handInstanceIds[index])
     }
-    seen.add(id)
-    ids.push(id)
   }
 
   return ids
 }
 
-/** Ingredient cards scattered on the lab canvas. */
-export function getIngredientTableIds(hand: readonly string[]): string[] {
-  return collectUniqueCanvasIds(
-    hand,
-    (id) => isIngredientDeckId(id) && !isResidueCard(id),
-  )
+/** Ingredient cards on the desk plus potions dragged out of the rack. */
+export function getCanvasCardIds(lab: LabSession): string[] {
+  const session = ensureLabInstances(lab)
+  return [...getIngredientTableIds(session), ...session.deskInstanceIds]
 }
 
-/** Ingredient and potion cards on the lab canvas. */
-export function getCanvasCardIds(hand: readonly string[]): string[] {
-  return collectUniqueCanvasIds(
-    hand,
-    (id) =>
-      (isIngredientDeckId(id) && !isResidueCard(id))
-      || isPotionDeckId(id),
-  )
+export interface RackPotionEntry {
+  instanceId: string
+  deckId: string
+}
+
+/** Potion copies still on the rack (in hand but not placed on the desk). */
+export function getRackPotionEntries(lab: LabSession): RackPotionEntry[] {
+  const session = ensureLabInstances(lab)
+  const onDesk = new Set(session.deskInstanceIds)
+  const entries: RackPotionEntry[] = []
+
+  for (let index = 0; index < session.hand.length; index += 1) {
+    const deckId = session.hand[index]
+    const instanceId = session.handInstanceIds[index]
+    if (!isPotionDeckId(deckId) || onDesk.has(instanceId)) {
+      continue
+    }
+    entries.push({ instanceId, deckId })
+  }
+
+  return entries
+}
+
+export function resolveCanvasDeckId(lab: LabSession, instanceId: string): string | undefined {
+  return deckIdForInstance(ensureLabInstances(lab), instanceId)
 }

@@ -28,6 +28,17 @@ import {
   drawFromLab,
   isResidueCard,
 } from '@/engine/deckUtils'
+import {
+  deckIdForInstance,
+  ensureLabInstances,
+  moveDeskInstanceToHand,
+  moveHandInstanceToDesk,
+  nextCardInstanceId,
+  pushCardsToHand,
+  removeDeskInstance,
+  removeFirstDeckIdFromHand,
+  removeInstancesFromHand,
+} from '@/engine/labInstances'
 import { ingredientDisplayName, resolveDeckCard } from '@/lib/cardResolver'
 import type { GameRuntimeState, GameSaveData, LabSession, ExplorationEncounter } from '@/engine/state'
 import {
@@ -181,21 +192,11 @@ function rollExplorationEvent(locationId: string): ExplorationEncounter['event']
   return { type: 'curse' as const }
 }
 
-function appendUniqueCardIds(hand: readonly string[], ...ids: (string | null)[]): string[] {
-  const next = [...hand]
-  for (const id of ids) {
-    if (id && !next.includes(id)) {
-      next.push(id)
-    }
-  }
-  return next
-}
-
 function releaseFusedCardsToHand(lab: LabSession): LabSession {
   const [slotA, slotB] = lab.tableSlots
   return {
     ...lab,
-    hand: appendUniqueCardIds(lab.hand, slotA, slotB),
+    ...pushCardsToHand(lab, slotA, slotB),
     tableSlots: [null, null],
   }
 }
@@ -205,7 +206,7 @@ function handleFailedBrew(
   slotA: string,
   slotB: string,
   resultMessage: string,
-): { lab: Partial<LabSession> & { hand: string[]; discardPile: string[]; tableSlots: [string | null, string | null] }; message: string } {
+): { lab: Partial<LabSession> & { hand: string[]; handInstanceIds: string[]; discardPile: string[]; tableSlots: [string | null, string | null] }; message: string } {
   let message = resultMessage
   const returned: string[] = []
 
@@ -232,7 +233,8 @@ function handleFailedBrew(
 
   return {
     lab: {
-      hand: appendUniqueCardIds(lab.hand, ...returned),
+      ...lab,
+      ...pushCardsToHand(lab, ...returned),
       discardPile,
       tableSlots: [null, null] as [string | null, string | null],
     },
@@ -283,8 +285,10 @@ export function startLaboratory(state: GameRuntimeState): GameRuntimeState {
       lab: {
         drawPile: [],
         hand: [],
+        handInstanceIds: [],
         discardPile: [],
         deskCards: [],
+        deskInstanceIds: [],
         tableSlots: [null, null],
         resultPotionId: null,
         brewMessage: 'Your deck is empty. Visit the Deckbuilder first.',
@@ -374,6 +378,71 @@ export function removeCardFromSlot(
       tableSlots: nextSlots,
       hand: [...state.lab.hand, cardId],
       resultPotionId: null,
+    },
+  }
+}
+
+export function placePotionOnDesk(
+  state: GameRuntimeState,
+  instanceId: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = ensureLabInstances(state.lab)
+  const deckId = deckIdForInstance(lab, instanceId)
+  if (!deckId || !isPotionDeckId(deckId)) {
+    return state
+  }
+
+  const nextLab = moveHandInstanceToDesk(lab, instanceId)
+  if (!nextLab) {
+    return state
+  }
+
+  return {
+    ...state,
+    selectedCardId: null,
+    lab: {
+      ...nextLab,
+      brewMessage: null,
+      brewOutcome: 'idle',
+    },
+  }
+}
+
+export function returnPotionToRack(
+  state: GameRuntimeState,
+  instanceId: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = ensureLabInstances(state.lab)
+  if (lab.hand.length >= GAME_CONFIG.maxHandSize) {
+    return {
+      ...state,
+      lab: {
+        ...lab,
+        brewMessage: 'Your hand is full — use or rack another potion first.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
+
+  const nextLab = moveDeskInstanceToHand(lab, instanceId)
+  if (!nextLab) {
+    return state
+  }
+
+  return {
+    ...state,
+    lab: {
+      ...nextLab,
+      brewMessage: null,
+      brewOutcome: 'idle',
     },
   }
 }
@@ -483,22 +552,24 @@ export function fuseDeskCards(
 
 export function fuseHandCards(
   state: GameRuntimeState,
-  cardA: string,
-  cardB: string,
+  instanceA: string,
+  instanceB: string,
 ): GameRuntimeState {
   if (!state.lab) {
     return state
   }
 
-  const lab = state.lab
+  const lab = ensureLabInstances(state.lab)
+  const deckA = deckIdForInstance(lab, instanceA)
+  const deckB = deckIdForInstance(lab, instanceB)
   if (
-    cardA === cardB
-    || !lab.hand.includes(cardA)
-    || !lab.hand.includes(cardB)
-    || !isIngredientDeckId(cardA)
-    || !isIngredientDeckId(cardB)
-    || isResidueCard(cardA)
-    || isResidueCard(cardB)
+    instanceA === instanceB
+    || !deckA
+    || !deckB
+    || !isIngredientDeckId(deckA)
+    || !isIngredientDeckId(deckB)
+    || isResidueCard(deckA)
+    || isResidueCard(deckB)
   ) {
     return state
   }
@@ -508,8 +579,8 @@ export function fuseHandCards(
     selectedCardId: null,
     lab: {
       ...lab,
-      hand: lab.hand.filter((id) => id !== cardA && id !== cardB),
-      tableSlots: [cardA, cardB],
+      ...removeInstancesFromHand(lab, instanceA, instanceB),
+      tableSlots: [deckA, deckB],
       resultPotionId: null,
       brewMessage: null,
       brewOutcome: 'idle',
@@ -522,24 +593,29 @@ export function mergeDeskIntoHand(state: GameRuntimeState): GameRuntimeState {
     return state
   }
 
-  const lab = state.lab
+  const lab = ensureLabInstances(state.lab)
   let hand = [...lab.hand]
+  let handInstanceIds = [...lab.handInstanceIds]
 
-  for (const id of lab.deskCards ?? []) {
-    if (!hand.includes(id)) {
-      hand.push(id)
-    }
+  for (let index = 0; index < lab.deskCards.length; index += 1) {
+    hand.push(lab.deskCards[index])
+    handInstanceIds.push(lab.deskInstanceIds[index])
   }
 
   const [slotA, slotB] = lab.tableSlots
-  hand = appendUniqueCardIds(hand, slotA, slotB)
+  const withReturned = pushCardsToHand(
+    { ...lab, hand, handInstanceIds },
+    slotA,
+    slotB,
+  )
 
   return {
     ...state,
     lab: {
       ...lab,
-      hand,
+      ...withReturned,
       deskCards: [],
+      deskInstanceIds: [],
       tableSlots: [null, null],
     },
   }
@@ -549,7 +625,7 @@ export function drawCard(state: GameRuntimeState): GameRuntimeState {
   if (!state.lab) {
     return state
   }
-  return { ...state, lab: drawFromLab(state.lab, 1) }
+  return { ...state, lab: drawFromLab(ensureLabInstances(state.lab), 1) }
 }
 
 export function brew(state: GameRuntimeState): GameRuntimeState {
@@ -687,13 +763,18 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
       if (canAddToDeck(save.playerDeck, transmuteId)) {
         save.playerDeck = [...save.playerDeck, transmuteId]
       }
-      labNext = {
-        ...labNext,
-        hand:
-          lab.hand.length < GAME_CONFIG.maxHandSize
-            ? [...lab.hand, transmuteId]
-            : lab.hand,
-        resultPotionId: null,
+      if (lab.hand.length < GAME_CONFIG.maxHandSize) {
+        const pushed = pushCardsToHand(lab, transmuteId)
+        labNext = {
+          ...labNext,
+          ...pushed,
+          resultPotionId: null,
+        }
+      } else {
+        labNext = {
+          ...labNext,
+          resultPotionId: null,
+        }
       }
       if (!save.discoveredIngredientIds.includes(transmuteId)) {
         entries.unshift(
@@ -724,6 +805,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     labNext = {
       ...labNext,
       hand: failed.lab.hand,
+      handInstanceIds: failed.lab.handInstanceIds,
       discardPile: failed.lab.discardPile,
       tableSlots: failed.lab.tableSlots,
       brewMessage: failed.message,
@@ -752,20 +834,24 @@ export function craftPotionCard(state: GameRuntimeState): GameRuntimeState {
   const { potionId } = state.lab.pendingBrew
   const deckId = potionDeckId(potionId)
   let save = updateOrders(state.save, { type: 'craft' })
-  let hand = [...state.lab.hand]
-  let discardPile = [...state.lab.discardPile]
+  const labBase = ensureLabInstances(state.lab)
+  let hand = [...labBase.hand]
+  let handInstanceIds = [...labBase.handInstanceIds]
+  let discardPile = [...labBase.discardPile]
   let brewMessage = `${POTION_MAP.get(potionId)?.name ?? 'Potion'} crafted as a card!`
 
   if (canAddToDeck(save.playerDeck, deckId)) {
     save.playerDeck = [...save.playerDeck, deckId]
     if (hand.length < GAME_CONFIG.maxHandSize) {
       hand.push(deckId)
+      handInstanceIds.push(nextCardInstanceId())
     } else {
       discardPile.push(deckId)
       brewMessage += ' (Added to deck — draw pile full, card went to discard.)'
     }
   } else if (hand.length < GAME_CONFIG.maxHandSize) {
     hand.push(deckId)
+    handInstanceIds.push(nextCardInstanceId())
     brewMessage += ' (Support deck full — card is in your hand for this visit only.)'
   } else {
     discardPile.push(deckId)
@@ -773,8 +859,9 @@ export function craftPotionCard(state: GameRuntimeState): GameRuntimeState {
   }
 
   const lab: LabSession = {
-    ...state.lab,
+    ...labBase,
     hand,
+    handInstanceIds,
     discardPile,
     pendingBrew: null,
     brewMessage,
@@ -814,9 +901,11 @@ export function bottlePotion(state: GameRuntimeState): GameRuntimeState {
 
 export function playPotionCard(
   state: GameRuntimeState,
-  deckId: string,
+  instanceId: string,
 ): GameRuntimeState {
-  if (!state.lab || !isPotionDeckId(deckId) || !state.lab.hand.includes(deckId)) {
+  const labBase = state.lab ? ensureLabInstances(state.lab) : null
+  const deckId = labBase ? deckIdForInstance(labBase, instanceId) : undefined
+  if (!labBase || !deckId || !isPotionDeckId(deckId)) {
     return state
   }
 
@@ -827,10 +916,25 @@ export function playPotionCard(
   }
 
   let save = state.save
-  let lab: LabSession = {
-    ...state.lab,
-    hand: state.lab.hand.filter((id) => id !== deckId),
-    discardPile: [...state.lab.discardPile, deckId],
+  let lab: LabSession
+
+  if (labBase.deskInstanceIds.includes(instanceId)) {
+    const withoutDesk = removeDeskInstance(labBase, instanceId)
+    if (!withoutDesk) {
+      return state
+    }
+    lab = {
+      ...withoutDesk,
+      discardPile: [...withoutDesk.discardPile, deckId],
+    }
+  } else if (labBase.handInstanceIds.includes(instanceId)) {
+    lab = {
+      ...labBase,
+      ...removeInstancesFromHand(labBase, instanceId),
+      discardPile: [...labBase.discardPile, deckId],
+    }
+  } else {
+    return state
   }
 
   const effectAmount = masteryEffectBonus(save, potionId, potion.effectAmount)
@@ -869,7 +973,13 @@ export function playTechniqueCard(
   state: GameRuntimeState,
   deckId: string,
 ): GameRuntimeState {
-  if (!state.lab || !isTechniqueDeckId(deckId) || !state.lab.hand.includes(deckId)) {
+  if (!state.lab || !isTechniqueDeckId(deckId)) {
+    return state
+  }
+
+  const labBase = ensureLabInstances(state.lab)
+  const removed = removeFirstDeckIdFromHand(labBase, deckId)
+  if (!removed) {
     return state
   }
 
@@ -880,9 +990,9 @@ export function playTechniqueCard(
   }
 
   let lab: LabSession = {
-    ...state.lab,
-    hand: state.lab.hand.filter((id) => id !== deckId),
-    discardPile: [...state.lab.discardPile, deckId],
+    ...labBase,
+    ...removed,
+    discardPile: [...labBase.discardPile, deckId],
   }
 
   let brewMessage = `Used ${technique.name}.`
@@ -894,13 +1004,18 @@ export function playTechniqueCard(
         brewMessage = 'Distill: nothing in the discard pile to recover.'
       } else {
         const pick = recoverable[Math.floor(Math.random() * recoverable.length)]
-        lab = {
-          ...lab,
-          discardPile: lab.discardPile.filter((id) => id !== pick),
-          hand:
-            lab.hand.length < GAME_CONFIG.maxHandSize
-              ? [...lab.hand, pick]
-              : lab.hand,
+        if (lab.hand.length < GAME_CONFIG.maxHandSize) {
+          const pushed = pushCardsToHand(lab, pick)
+          lab = {
+            ...lab,
+            ...pushed,
+            discardPile: lab.discardPile.filter((id) => id !== pick),
+          }
+        } else {
+          lab = {
+            ...lab,
+            discardPile: lab.discardPile.filter((id) => id !== pick),
+          }
         }
         brewMessage = `Distill: recovered ${ingredientDisplayName(pick)} from discard.`
       }
@@ -914,9 +1029,17 @@ export function playTechniqueCard(
       const residueCount =
         lab.hand.filter(isResidueCard).length
         + lab.discardPile.filter(isResidueCard).length
+      const hand: string[] = []
+      const handInstanceIds: string[] = []
+      for (let index = 0; index < lab.hand.length; index += 1) {
+        if (isResidueCard(lab.hand[index])) continue
+        hand.push(lab.hand[index])
+        handInstanceIds.push(lab.handInstanceIds[index])
+      }
       lab = {
         ...lab,
-        hand: lab.hand.filter((id) => !isResidueCard(id)),
+        hand,
+        handInstanceIds,
         discardPile: lab.discardPile.filter((id) => !isResidueCard(id)),
       }
       brewMessage =
@@ -929,8 +1052,12 @@ export function playTechniqueCard(
       const [a, b] = lab.tableSlots
       if (!a || !b) {
         brewMessage = 'Stir: both circle slots must be filled to swap.'
-        lab.hand = [...lab.hand, deckId]
-        lab.discardPile = lab.discardPile.filter((id) => id !== deckId)
+        const rolledBack = pushCardsToHand(lab, deckId)
+        lab = {
+          ...lab,
+          ...rolledBack,
+          discardPile: lab.discardPile.filter((id) => id !== deckId),
+        }
       } else {
         lab = { ...lab, tableSlots: [b, a] }
         brewMessage = 'Stir: swapped the ingredients in the circle.'
@@ -963,14 +1090,20 @@ export function discardFromHand(
   state: GameRuntimeState,
   deckId: string,
 ): GameRuntimeState {
-  if (!state.lab || !state.lab.hand.includes(deckId)) {
+  if (!state.lab) {
+    return state
+  }
+
+  const labBase = ensureLabInstances(state.lab)
+  const removed = removeFirstDeckIdFromHand(labBase, deckId)
+  if (!removed) {
     return state
   }
 
   const lab: LabSession = {
-    ...state.lab,
-    hand: state.lab.hand.filter((id) => id !== deckId),
-    discardPile: [...state.lab.discardPile, deckId],
+    ...labBase,
+    ...removed,
+    discardPile: [...labBase.discardPile, deckId],
     brewMessage: isResidueCard(deckId)
       ? 'Residue discarded.'
       : `Discarded ${ingredientDisplayName(deckId)}.`,

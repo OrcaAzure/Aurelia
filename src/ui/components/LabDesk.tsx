@@ -25,11 +25,13 @@ interface LabDeskProps {
   brewOutcome: 'idle' | 'success' | 'fail'
   pendingBrew: { recipeId: string; potionId: string } | null
   resolveCard: (id: string) => GameCard | undefined
+  resolveCanvasDeckId: (instanceId: string) => string | undefined
   onFocusCard: (cardId: string) => void
   onMoveCard: (cardId: string, transform: CardTransform) => void
   onFuse: (cardId: string, targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
-  onUsePotion: (cardId: string) => void
+  onUsePotion: (canvasId: string) => void
+  onReturnPotionToRack: (canvasId: string) => void
   onCraft: () => void
   onBottle: () => void
   onDismissMessage: () => void
@@ -49,11 +51,13 @@ export function LabDesk({
   brewOutcome,
   pendingBrew,
   resolveCard,
+  resolveCanvasDeckId,
   onFocusCard,
   onMoveCard,
   onFuse,
   onCheckOverlap,
   onUsePotion,
+  onReturnPotionToRack,
   onCraft,
   onBottle,
   onDismissMessage,
@@ -68,24 +72,31 @@ export function LabDesk({
         data-lab-canvas
         className="absolute inset-0 touch-none overflow-visible"
       >
-        {tableCardIds.map((cardId, index) => {
-          const card = resolveCard(cardId)
-          const transform = cardTransforms[cardId]
-          if (!card || !transform) return null
+        {tableCardIds.map((instanceId, index) => {
+          const deckId = resolveCanvasDeckId(instanceId)
+          const card = deckId ? resolveCard(deckId) : undefined
+          const transform = cardTransforms[instanceId]
+          if (!card || !deckId || !transform) return null
 
           return (
             <DeskCard
-              key={cardId}
-              cardId={cardId}
+              key={instanceId}
+              cardId={instanceId}
               card={card}
               transform={transform}
-              zIndex={zOrder[cardId] ?? 10 + index}
+              zIndex={zOrder[instanceId] ?? 10 + index}
               disabled={fusing}
-              onFocus={() => onFocusCard(cardId)}
-              onMove={(next) => onMoveCard(cardId, next)}
-              onFuse={(targetId) => onFuse(cardId, targetId)}
+              onFocus={() => onFocusCard(instanceId)}
+              onMove={(next) => onMoveCard(instanceId, next)}
+              onFuse={(targetId) => onFuse(instanceId, targetId)}
               onCheckOverlap={onCheckOverlap}
-              onUse={card.category === 'potion' ? () => onUsePotion(cardId) : undefined}
+              onUse={card.category === 'potion' ? () => onUsePotion(instanceId) : undefined}
+              canReturnToRack={card.category === 'potion'}
+              onReturnToRack={
+                card.category === 'potion'
+                  ? () => onReturnPotionToRack(instanceId)
+                  : undefined
+              }
             />
           )
         })}
