@@ -107,9 +107,10 @@ export function LabDesk({
               key="merge-overlay"
               className="pointer-events-none absolute inset-0 z-[150]"
             >
-              {mergingPair.map((id, i) => {
-                const card = resolveCard(id)
-                const pos = mergeTransforms[id]
+              {mergingPair.map((instanceId, i) => {
+                const deckId = resolveCanvasDeckId(instanceId)
+                const card = deckId ? resolveCard(deckId) : undefined
+                const pos = mergeTransforms[instanceId]
                 if (!card || !pos) return null
                 const other = mergeTransforms[mergingPair[1 - i]]
                 const target = other
@@ -118,7 +119,7 @@ export function LabDesk({
 
                 return (
                   <motion.div
-                    key={id}
+                    key={instanceId}
                     className="absolute"
                     style={{ width: DESK_CARD_WIDTH }}
                     initial={{

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { audioService } from '@/audio'
 import { GAME_CONFIG } from '@/config'
 import {
@@ -29,6 +29,7 @@ export function LaboratoryScreen() {
   const setPhase = useGameStore((state) => state.setPhase)
   const openJournal = useGameStore((state) => state.openJournal)
   const mergeDeskIntoHand = useGameStore((state) => state.mergeDeskIntoHand)
+  const prepareLabSession = useGameStore((state) => state.prepareLabSession)
   const fuseHandCards = useGameStore((state) => state.fuseHandCards)
   const drawCard = useGameStore((state) => state.drawCard)
   const brew = useGameStore((state) => state.brew)
@@ -53,6 +54,7 @@ export function LaboratoryScreen() {
   const [mergeTransforms, setMergeTransforms] = useState<Record<string, CardTransform>>({})
   const [brewSlots, setBrewSlots] = useState<[string | null, string | null]>([null, null])
   const brewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fusedInstances = useRef<[string, string] | null>(null)
 
   const prevDiscoveredCount = useRef(save.discoveredRecipeIds.length)
   const pendingOutcome = useRef<'success' | 'fail'>('success')
@@ -62,12 +64,13 @@ export function LaboratoryScreen() {
     setZOrder((prev) => ({ ...prev, [cardId]: zCounter.current }))
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mergedDesk.current) {
+      prepareLabSession()
       mergeDeskIntoHand()
       mergedDesk.current = true
     }
-  }, [mergeDeskIntoHand])
+  }, [mergeDeskIntoHand, prepareLabSession])
 
   useEffect(() => {
     return () => {
@@ -134,7 +137,7 @@ export function LaboratoryScreen() {
 
   useEffect(() => {
     syncCardLayout()
-  }, [syncCardLayout, canvasCardIds.join('|')])
+  }, [syncCardLayout, canvasCardIds.join('|'), lab?.handInstanceIds?.join('|')])
 
   useEffect(() => {
     const onResize = () => syncCardLayout()
@@ -156,9 +159,11 @@ export function LaboratoryScreen() {
 
     if (save.reagents < GAME_CONFIG.brewReagentCost) {
       brew()
+      fusedInstances.current = null
       setIsMerging(false)
       setMergingPair(null)
       setMergeTransforms({})
+      syncCardLayout()
       return
     }
 
@@ -168,10 +173,23 @@ export function LaboratoryScreen() {
     audioService.play('click')
 
     brewTimer.current = setTimeout(() => {
+      const fused = fusedInstances.current
       brew()
       const afterBrew = useGameStore.getState().lab
       const outcome = afterBrew?.brewOutcome
       pendingOutcome.current = outcome === 'fail' ? 'fail' : 'success'
+
+      if (outcome === 'success' && fused) {
+        setCardTransforms((prev) => {
+          const next = { ...prev }
+          delete next[fused[0]]
+          delete next[fused[1]]
+          return next
+        })
+      }
+
+      fusedInstances.current = null
+
       if (outcome === 'success') {
         audioService.play('brew-success')
       } else if (outcome === 'fail') {
@@ -184,9 +202,7 @@ export function LaboratoryScreen() {
         setIsBrewing(false)
         setMergingPair(null)
         setMergeTransforms({})
-        if (afterBrew?.brewOutcome === 'fail') {
-          syncCardLayout()
-        }
+        syncCardLayout()
       }, FLASH_MS)
     }, SWIRL_MS)
   }, [lab, isBrewing, brew, save.reagents, syncCardLayout])
@@ -248,17 +264,11 @@ export function LaboratoryScreen() {
         return
       }
 
-      setMergingPair([deckA, deckB])
+      setMergingPair([instanceA, instanceB])
       setMergeTransforms(transforms)
       setIsMerging(true)
+      fusedInstances.current = [instanceA, instanceB]
       audioService.play('click')
-
-      setCardTransforms((prev) => {
-        const next = { ...prev }
-        delete next[instanceA]
-        delete next[instanceB]
-        return next
-      })
 
       brewTimer.current = setTimeout(() => {
         setIsMerging(false)

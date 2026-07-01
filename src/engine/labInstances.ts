@@ -137,6 +137,45 @@ export function moveDeskInstanceToHand(lab: LabSession, instanceId: string): Lab
   }
 }
 
+export function restoreFusedInstancesToHand(
+  lab: LabSession,
+  entries: readonly { deckId: string; instanceId: string }[],
+): Pick<LabSession, 'hand' | 'handInstanceIds'> {
+  const hand = [...lab.hand]
+  const handInstanceIds = [...lab.handInstanceIds]
+
+  for (const { deckId, instanceId } of entries) {
+    hand.push(deckId)
+    handInstanceIds.push(instanceId)
+  }
+
+  return { hand, handInstanceIds }
+}
+
+export function fusedEntriesFromLab(
+  lab: LabSession,
+): { deckId: string; instanceId: string }[] {
+  const [deckA, deckB] = lab.tableSlots
+  const [instanceA, instanceB] = lab.tableSlotInstances ?? [null, null]
+  const entries: { deckId: string; instanceId: string }[] = []
+
+  if (deckA && instanceA) {
+    entries.push({ deckId: deckA, instanceId: instanceA })
+  }
+  if (deckB && instanceB) {
+    entries.push({ deckId: deckB, instanceId: instanceB })
+  }
+
+  return entries
+}
+
+export function clearFusionSlots(): Pick<LabSession, 'tableSlots' | 'tableSlotInstances'> {
+  return {
+    tableSlots: [null, null],
+    tableSlotInstances: [null, null],
+  }
+}
+
 export function removeDeskInstance(lab: LabSession, instanceId: string): LabSession | null {
   const deskIndex = lab.deskInstanceIds.indexOf(instanceId)
   if (deskIndex === -1) {

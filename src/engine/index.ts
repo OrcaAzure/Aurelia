@@ -32,6 +32,7 @@ export {
   fuseDeskCards,
   fuseHandCards,
   mergeDeskIntoHand,
+  prepareLabSession,
   removeCardFromDeck,
   removeCardFromSlot,
   resolveCard,

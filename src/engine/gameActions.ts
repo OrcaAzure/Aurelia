@@ -29,8 +29,10 @@ import {
   isResidueCard,
 } from '@/engine/deckUtils'
 import {
+  clearFusionSlots,
   deckIdForInstance,
   ensureLabInstances,
+  fusedEntriesFromLab,
   moveDeskInstanceToHand,
   moveHandInstanceToDesk,
   nextCardInstanceId,
@@ -38,6 +40,7 @@ import {
   removeDeskInstance,
   removeFirstDeckIdFromHand,
   removeInstancesFromHand,
+  restoreFusedInstancesToHand,
 } from '@/engine/labInstances'
 import { ingredientDisplayName, resolveDeckCard } from '@/lib/cardResolver'
 import type { GameRuntimeState, GameSaveData, LabSession, ExplorationEncounter } from '@/engine/state'
@@ -193,11 +196,10 @@ function rollExplorationEvent(locationId: string): ExplorationEncounter['event']
 }
 
 function releaseFusedCardsToHand(lab: LabSession): LabSession {
-  const [slotA, slotB] = lab.tableSlots
   return {
     ...lab,
-    ...pushCardsToHand(lab, slotA, slotB),
-    tableSlots: [null, null],
+    ...restoreFusedInstancesToHand(lab, fusedEntriesFromLab(lab)),
+    ...clearFusionSlots(),
   }
 }
 
@@ -206,19 +208,33 @@ function handleFailedBrew(
   slotA: string,
   slotB: string,
   resultMessage: string,
-): { lab: Partial<LabSession> & { hand: string[]; handInstanceIds: string[]; discardPile: string[]; tableSlots: [string | null, string | null] }; message: string } {
+): {
+  lab: Partial<LabSession> & {
+    hand: string[]
+    handInstanceIds: string[]
+    discardPile: string[]
+    tableSlots: [string | null, string | null]
+    tableSlotInstances: [string | null, string | null]
+  }
+  message: string
+} {
   let message = resultMessage
-  const returned: string[] = []
+  const [instanceA, instanceB] = lab.tableSlotInstances ?? [null, null]
+  const pairs: [string, string | null][] = [
+    [slotA, instanceA],
+    [slotB, instanceB],
+  ]
+  const returned: { deckId: string; instanceId: string }[] = []
 
-  for (const cardId of [slotA, slotB]) {
+  for (const [cardId, instanceId] of pairs) {
     const consumed =
       GAME_CONFIG.volatileConsumeChance > 0
       && isVolatileIngredient(cardId)
       && Math.random() < GAME_CONFIG.volatileConsumeChance
     if (consumed) {
       message += ` ${ingredientDisplayName(cardId)} was consumed by the volatile reaction.`
-    } else {
-      returned.push(cardId)
+    } else if (instanceId) {
+      returned.push({ deckId: cardId, instanceId })
     }
   }
 
@@ -234,9 +250,9 @@ function handleFailedBrew(
   return {
     lab: {
       ...lab,
-      ...pushCardsToHand(lab, ...returned),
+      ...restoreFusedInstancesToHand(lab, returned),
       discardPile,
-      tableSlots: [null, null] as [string | null, string | null],
+      ...clearFusionSlots(),
     },
     message,
   }
@@ -290,6 +306,7 @@ export function startLaboratory(state: GameRuntimeState): GameRuntimeState {
         deskCards: [],
         deskInstanceIds: [],
         tableSlots: [null, null],
+        tableSlotInstances: [null, null],
         resultPotionId: null,
         brewMessage: 'Your deck is empty. Visit the Deckbuilder first.',
         brewOutcome: 'fail',
@@ -302,9 +319,16 @@ export function startLaboratory(state: GameRuntimeState): GameRuntimeState {
   return {
     ...state,
     phase: 'laboratory',
-    lab: createLabSession(state.save.playerDeck),
+    lab: ensureLabInstances(createLabSession(state.save.playerDeck)),
     selectedCardId: null,
   }
+}
+
+export function prepareLabSession(state: GameRuntimeState): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+  return { ...state, lab: ensureLabInstances(state.lab) }
 }
 
 export function selectCard(
@@ -581,6 +605,7 @@ export function fuseHandCards(
       ...lab,
       ...removeInstancesFromHand(lab, instanceA, instanceB),
       tableSlots: [deckA, deckB],
+      tableSlotInstances: [instanceA, instanceB],
       resultPotionId: null,
       brewMessage: null,
       brewOutcome: 'idle',
@@ -616,7 +641,7 @@ export function mergeDeskIntoHand(state: GameRuntimeState): GameRuntimeState {
       ...withReturned,
       deskCards: [],
       deskInstanceIds: [],
-      tableSlots: [null, null],
+      ...clearFusionSlots(),
     },
   }
 }
@@ -669,7 +694,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
   let save = { ...state.save }
   let labNext: LabSession = {
     ...lab,
-    tableSlots: [null, null],
+    ...clearFusionSlots(),
     brewMessage: result.message,
     brewOutcome: result.success ? 'success' : 'fail',
     resultPotionId: null,
@@ -808,6 +833,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
       handInstanceIds: failed.lab.handInstanceIds,
       discardPile: failed.lab.discardPile,
       tableSlots: failed.lab.tableSlots,
+      tableSlotInstances: failed.lab.tableSlotInstances,
       brewMessage: failed.message,
     }
     if (result.nearMiss) {

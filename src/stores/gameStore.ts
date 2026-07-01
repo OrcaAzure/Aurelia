@@ -28,6 +28,7 @@ import {
   fuseDeskCards,
   fuseHandCards,
   mergeDeskIntoHand,
+  prepareLabSession,
   playPotionCard,
   playTechniqueCard,
   prepareIngredient,
@@ -61,6 +62,7 @@ type GameStore = GameRuntimeState & {
   fuseDeskCards: (cardA: string, cardB: string) => void
   fuseHandCards: (instanceA: string, instanceB: string) => void
   mergeDeskIntoHand: () => void
+  prepareLabSession: () => void
   removeCardFromSlot: (slotIndex: 0 | 1) => void
   drawCard: () => void
   brew: () => void
@@ -100,6 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   fuseDeskCards: (cardA, cardB) => set(fuseDeskCards(get(), cardA, cardB)),
   fuseHandCards: (instanceA, instanceB) => set(fuseHandCards(get(), instanceA, instanceB)),
   mergeDeskIntoHand: () => set(mergeDeskIntoHand(get())),
+  prepareLabSession: () => set(prepareLabSession(get())),
   removeCardFromSlot: (slotIndex) => set(removeCardFromSlot(get(), slotIndex)),
   drawCard: () => set(drawCard(get())),
   brew: () => set(brew(get())),

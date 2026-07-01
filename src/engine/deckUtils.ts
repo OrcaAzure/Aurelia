@@ -29,6 +29,7 @@ export function createLabSession(deck: readonly string[]): LabSession {
     deskCards: [],
     deskInstanceIds: [],
     tableSlots: [null, null],
+    tableSlotInstances: [null, null],
     resultPotionId: null,
     brewMessage: null,
     brewOutcome: 'idle',
