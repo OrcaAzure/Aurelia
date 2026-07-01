@@ -1,15 +1,110 @@
 import { create } from 'zustand'
 import type { GamePhase } from '@/engine'
-import { STARTER_INGREDIENTS } from '@/cards'
+import {
+  addCardToDeck,
+  bottlePotion,
+  brew,
+  buyShopItem,
+  cancelExplorationEncounter,
+  claimOrderReward,
+  clearBrewMessage,
+  completeExploration,
+  completeTutorial,
+  craftPotionCard,
+  createInitialState,
+  drawCard,
+  getOwnedTechniques,
+  getPlayerRank,
+  getRecipeMasteryInfo,
+  getRevealedHints,
+  getUndiscoveredRecipeHints,
+  openJournal,
+  placeCardInSlot,
+  playPotionCard,
+  playTechniqueCard,
+  prepareIngredient,
+  removeCardFromDeck,
+  removeCardFromSlot,
+  resolveCard,
+  resolvePotion,
+  selectCard,
+  setPhase,
+  setPlayerName,
+  startExploration,
+  startLaboratory,
+} from '@/engine/gameActions'
+import type { GameRuntimeState } from '@/engine/state'
+import { loadGameSave, migrateLegacySave } from '@/lib/persistence'
 
-interface GameState {
-  phase: GamePhase
-  hand: string[]
+migrateLegacySave()
+
+type GameStore = GameRuntimeState & {
   setPhase: (phase: GamePhase) => void
+  openJournal: (returnPhase: GamePhase) => void
+  setPlayerName: (name: string) => void
+  completeTutorial: () => void
+  startLaboratory: () => void
+  selectCard: (cardId: string | null) => void
+  placeCardInSlot: (cardId: string, slotIndex: 0 | 1) => void
+  removeCardFromSlot: (slotIndex: 0 | 1) => void
+  drawCard: () => void
+  brew: () => void
+  craftPotionCard: () => void
+  bottlePotion: () => void
+  playPotionCard: (deckId: string) => void
+  playTechniqueCard: (deckId: string) => void
+  clearBrewMessage: () => void
+  startExploration: (locationId: string) => void
+  completeExploration: (ingredientId: string) => void
+  addCardToDeck: (cardId: string) => void
+  removeCardFromDeck: (cardId: string) => void
+  buyShopItem: (shopItemId: string, ingredientId: string, price: number) => void
+  cancelExplorationEncounter: () => void
+  prepareIngredient: (preparationId: string) => void
+  claimOrderReward: (templateId: string) => void
 }
 
-export const useGameStore = create<GameState>((set) => ({
-  phase: 'laboratory',
-  hand: STARTER_INGREDIENTS.map((card) => card.id),
-  setPhase: (phase) => set({ phase }),
+const initial = createInitialState(loadGameSave())
+
+export const useGameStore = create<GameStore>((set, get) => ({
+  ...initial,
+
+  setPhase: (phase) => set(setPhase(get(), phase)),
+  openJournal: (returnPhase) => set(openJournal(get(), returnPhase)),
+  setPlayerName: (name) => set(setPlayerName(get(), name)),
+  completeTutorial: () => set(completeTutorial(get())),
+  startLaboratory: () => set(startLaboratory(get())),
+  selectCard: (cardId) => set(selectCard(get(), cardId)),
+  placeCardInSlot: (cardId, slotIndex) =>
+    set(placeCardInSlot(get(), cardId, slotIndex)),
+  removeCardFromSlot: (slotIndex) => set(removeCardFromSlot(get(), slotIndex)),
+  drawCard: () => set(drawCard(get())),
+  brew: () => set(brew(get())),
+  craftPotionCard: () => set(craftPotionCard(get())),
+  bottlePotion: () => set(bottlePotion(get())),
+  playPotionCard: (deckId) => set(playPotionCard(get(), deckId)),
+  playTechniqueCard: (deckId) => set(playTechniqueCard(get(), deckId)),
+  clearBrewMessage: () => set(clearBrewMessage(get())),
+  startExploration: (locationId) => set(startExploration(get(), locationId)),
+  completeExploration: (ingredientId) =>
+    set(completeExploration(get(), ingredientId)),
+  addCardToDeck: (cardId) => set(addCardToDeck(get(), cardId)),
+  removeCardFromDeck: (cardId) => set(removeCardFromDeck(get(), cardId)),
+  buyShopItem: (shopItemId, ingredientId, price) =>
+    set(buyShopItem(get(), shopItemId, ingredientId, price)),
+  cancelExplorationEncounter: () =>
+    set(cancelExplorationEncounter(get())),
+  prepareIngredient: (preparationId) =>
+    set(prepareIngredient(get(), preparationId)),
+  claimOrderReward: (templateId) => set(claimOrderReward(get(), templateId)),
 }))
+
+export {
+  resolveCard,
+  resolvePotion,
+  getPlayerRank,
+  getUndiscoveredRecipeHints,
+  getRevealedHints,
+  getRecipeMasteryInfo,
+  getOwnedTechniques,
+}

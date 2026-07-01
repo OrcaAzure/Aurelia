@@ -11,3 +11,27 @@ export type {
   SaveManager,
   SaveSlot,
 } from './managers'
+export type { GameRuntimeState, GameSaveData, LabSession, PotionStack } from './state'
+export {
+  addCardToDeck,
+  brew,
+  buyShopItem,
+  cancelExplorationEncounter,
+  completeExploration,
+  completeTutorial,
+  createInitialState,
+  drawCard,
+  getPlayerRank,
+  getUndiscoveredRecipeHints,
+  openJournal,
+  placeCardInSlot,
+  removeCardFromDeck,
+  removeCardFromSlot,
+  resolveCard,
+  resolvePotion,
+  selectCard,
+  setPhase,
+  setPlayerName,
+  startExploration,
+  startLaboratory,
+} from './gameActions'

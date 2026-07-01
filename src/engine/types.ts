@@ -1,8 +1,12 @@
 export type GamePhase =
+  | 'menu'
   | 'laboratory'
-  | 'exploration'
   | 'journal'
+  | 'settings'
+  | 'exploration'
   | 'deckbuilding'
+  | 'shop'
+  | 'preparation'
 
 export interface GameSession {
   phase: GamePhase

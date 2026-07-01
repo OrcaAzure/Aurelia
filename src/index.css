@@ -22,3 +22,17 @@
     @apply min-h-screen;
   }
 }
+
+@layer components {
+  .lab-desk {
+    background:
+      linear-gradient(180deg, rgba(26, 20, 16, 0.6) 0%, rgba(20, 15, 10, 0.95) 100%),
+      repeating-linear-gradient(
+        90deg,
+        rgba(61, 43, 31, 0.15) 0px,
+        rgba(61, 43, 31, 0.15) 2px,
+        transparent 2px,
+        transparent 80px
+      );
+  }
+}

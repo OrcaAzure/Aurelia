@@ -3,10 +3,14 @@ import type { Inventory } from './inventory'
 import type { Player } from './player'
 
 export type GamePhase =
+  | 'menu'
   | 'laboratory'
-  | 'exploration'
   | 'journal'
+  | 'settings'
+  | 'exploration'
   | 'deckbuilding'
+  | 'shop'
+  | 'preparation'
 
 export interface DeckState {
   drawPile: readonly string[]

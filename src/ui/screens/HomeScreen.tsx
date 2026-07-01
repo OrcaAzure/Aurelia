@@ -1,14 +1,13 @@
-import { STARTER_INGREDIENTS } from '@/cards'
-import { useGameStore } from '@/stores/gameStore'
-import { CardView } from '@/ui/components/CardView'
+import { resolveCard, useGameStore } from '@/stores/gameStore'
+import { Card } from '@/ui/components/Card'
 
 export function HomeScreen() {
   const phase = useGameStore((state) => state.phase)
-  const hand = useGameStore((state) => state.hand)
+  const hand = useGameStore((state) => state.lab?.hand ?? [])
 
   const handCards = hand
-    .map((id) => STARTER_INGREDIENTS.find((card) => card.id === id))
-    .filter((card): card is (typeof STARTER_INGREDIENTS)[number] => card !== undefined)
+    .map((id) => resolveCard(id))
+    .filter((card): card is NonNullable<ReturnType<typeof resolveCard>> => card !== undefined)
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-12">
@@ -32,8 +31,8 @@ export function HomeScreen() {
           Your Hand
         </h2>
         <div className="flex flex-wrap justify-center gap-6">
-          {handCards.map((card, index) => (
-            <CardView key={card.id} card={card} index={index} />
+          {handCards.map((card) => (
+            <Card key={card.id} card={card} />
           ))}
         </div>
       </section>
