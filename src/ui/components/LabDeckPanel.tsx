@@ -32,7 +32,7 @@ export function LabDeckPanel({
       <button
         type="button"
         onClick={onDraw}
-        disabled={!canDraw}
+        disabled={!canDraw || deskFull}
         className="group flex w-full flex-col items-center px-2 disabled:cursor-not-allowed disabled:opacity-40"
         title={drawTitle}
       >

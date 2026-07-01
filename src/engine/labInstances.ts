@@ -1,4 +1,5 @@
 import type { LabSession } from '@/engine/state'
+import type { CardTransform } from '@/lib/dragDrop'
 
 let instanceCounter = 0
 
@@ -27,20 +28,12 @@ export function ensureLabInstances(lab: LabSession): LabSession {
     handInstanceIds,
     catalystSlot: lab.catalystSlot ?? null,
     catalystInstance: lab.catalystInstance ?? null,
+    cardLayouts: lab.cardLayouts ?? {},
+    canvasInitialized: lab.canvasInitialized ?? false,
   }
 }
 
 export function deckIdForInstance(lab: LabSession, instanceId: string): string | undefined {
-  const handIndex = lab.handInstanceIds.indexOf(instanceId)
-  if (handIndex !== -1) {
-    return lab.hand[handIndex]
-  }
-
-  const deskIndex = lab.deskInstanceIds.indexOf(instanceId)
-  if (deskIndex !== -1) {
-    return lab.deskCards[deskIndex]
-  }
-
   const slotInstances = lab.tableSlotInstances ?? [null, null]
   const slotIndex = slotInstances.indexOf(instanceId)
   if (slotIndex !== -1) {
@@ -49,6 +42,16 @@ export function deckIdForInstance(lab: LabSession, instanceId: string): string |
 
   if (lab.catalystInstance === instanceId) {
     return lab.catalystSlot ?? undefined
+  }
+
+  const handIndex = lab.handInstanceIds.indexOf(instanceId)
+  if (handIndex !== -1) {
+    return lab.hand[handIndex]
+  }
+
+  const deskIndex = lab.deskInstanceIds.indexOf(instanceId)
+  if (deskIndex !== -1) {
+    return lab.deskCards[deskIndex]
   }
 
   return undefined
@@ -149,21 +152,6 @@ export function moveDeskInstanceToHand(lab: LabSession, instanceId: string): Lab
   }
 }
 
-export function restoreFusedInstancesToHand(
-  lab: LabSession,
-  entries: readonly { deckId: string; instanceId: string }[],
-): Pick<LabSession, 'hand' | 'handInstanceIds'> {
-  const hand = [...lab.hand]
-  const handInstanceIds = [...lab.handInstanceIds]
-
-  for (const { deckId, instanceId } of entries) {
-    hand.push(deckId)
-    handInstanceIds.push(instanceId)
-  }
-
-  return { hand, handInstanceIds }
-}
-
 export function fusedEntriesFromLab(
   lab: LabSession,
 ): { deckId: string; instanceId: string }[] {
@@ -179,6 +167,51 @@ export function fusedEntriesFromLab(
   }
 
   return entries
+}
+
+export function getActiveFusionInstanceIds(lab: LabSession): string[] {
+  const ids: string[] = []
+  const [slotA, slotB] = lab.tableSlotInstances ?? [null, null]
+  if (slotA) ids.push(slotA)
+  if (slotB) ids.push(slotB)
+  if (lab.catalystInstance) ids.push(lab.catalystInstance)
+  return ids
+}
+
+export function restoreFusedInstancesToHand(
+  lab: LabSession,
+  entries: readonly { deckId: string; instanceId: string }[],
+): Pick<LabSession, 'hand' | 'handInstanceIds'> {
+  const hand = [...lab.hand]
+  const handInstanceIds = [...lab.handInstanceIds]
+  const held = new Set(handInstanceIds)
+
+  for (const { deckId, instanceId } of entries) {
+    if (held.has(instanceId)) {
+      continue
+    }
+    hand.push(deckId)
+    handInstanceIds.push(instanceId)
+    held.add(instanceId)
+  }
+
+  return { hand, handInstanceIds }
+}
+
+export function pruneCardLayouts(
+  layouts: Record<string, CardTransform>,
+  instanceIds: readonly string[],
+): Record<string, CardTransform> {
+  if (instanceIds.length === 0) {
+    return layouts
+  }
+
+  const remove = new Set(instanceIds)
+  const next = { ...layouts }
+  for (const id of remove) {
+    delete next[id]
+  }
+  return next
 }
 
 export function clearFusionSlots(): Pick<

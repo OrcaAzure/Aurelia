@@ -37,6 +37,8 @@ export function createLabSession(deck: readonly string[]): LabSession {
     brewOutcome: 'idle',
     pendingBrew: null,
     heatBoostActive: false,
+    cardLayouts: {},
+    canvasInitialized: false,
   }
 }
 

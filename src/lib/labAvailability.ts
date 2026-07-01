@@ -1,5 +1,6 @@
 import { isIngredientDeckId } from '@/cards/types'
 import { INGREDIENT_MAP } from '@/data'
+import { deckIdForInstance, getActiveFusionInstanceIds } from '@/engine/labInstances'
 import { isResidueCard } from '@/engine/deckUtils'
 import type { LabSession } from '@/engine/state'
 
@@ -24,8 +25,15 @@ export function getLabIngredientAvailability(lab: LabSession): IngredientAvailab
     ...lab.hand,
     ...lab.tableSlots.filter((id): id is string => id !== null),
   ]
+  const fusionDeckIds = new Set(
+    getActiveFusionInstanceIds(lab)
+      .map((instanceId) => deckIdForInstance(lab, instanceId))
+      .filter((id): id is string => Boolean(id)),
+  )
 
-  const held = countIngredientCopies(heldIds)
+  const held = countIngredientCopies(
+    heldIds.filter((deckId) => !fusionDeckIds.has(deckId)),
+  )
   const inDeck = countIngredientCopies(lab.drawPile)
   const keys = new Set([...held.keys(), ...inDeck.keys()])
 

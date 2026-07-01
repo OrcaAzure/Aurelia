@@ -5,6 +5,7 @@ import { POTION_MAP } from '@/data'
 import {
   DESK_CARD_HEIGHT,
   DESK_CARD_WIDTH,
+  scatterTransform,
   type CardTransform,
 } from '@/lib/dragDrop'
 import { DeskCard } from '@/ui/components/DeskCard'
@@ -18,6 +19,7 @@ interface LabDeskProps {
   zOrder: Record<string, number>
   mergingPair: [string, string] | null
   mergeTransforms: Record<string, CardTransform>
+  fusionInstanceIds: readonly string[]
   isBrewing: boolean
   isMerging: boolean
   resultPotionId: string | null
@@ -28,7 +30,7 @@ interface LabDeskProps {
   resolveCanvasDeckId: (instanceId: string) => string | undefined
   onFocusCard: (cardId: string) => void
   onMoveCard: (cardId: string, transform: CardTransform) => void
-  onFuse: (cardId: string, targetId: string) => void
+  onFuse: (cardId: string, targetId: string, draggedTransform: CardTransform) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
   onCheckCatalystOverlap: (
     center: { x: number; y: number },
@@ -38,6 +40,7 @@ interface LabDeskProps {
     catalystInstanceId: string,
     ingredientA: string,
     ingredientB: string,
+    draggedTransform: CardTransform,
   ) => void
   onUsePotion: (canvasId: string) => void
   onReturnPotionToRack: (canvasId: string) => void
@@ -53,6 +56,7 @@ export function LabDesk({
   zOrder,
   mergingPair,
   mergeTransforms,
+  fusionInstanceIds,
   isBrewing,
   isMerging,
   resultPotionId,
@@ -75,6 +79,9 @@ export function LabDesk({
 }: LabDeskProps) {
   const resultPotion = resultPotionId ? POTION_MAP.get(resultPotionId) : null
   const fusing = isMerging || isBrewing
+  const hiddenWhileFusing = fusing ? new Set(fusionInstanceIds) : new Set<string>()
+  const canvasW = canvasRef.current?.clientWidth ?? 600
+  const canvasH = canvasRef.current?.clientHeight ?? 500
 
   return (
     <DraggableCardContainer className="relative h-full w-full">
@@ -84,10 +91,16 @@ export function LabDesk({
         className="absolute inset-0 touch-none overflow-visible"
       >
         {tableCardIds.map((instanceId, index) => {
+          if (hiddenWhileFusing.has(instanceId)) {
+            return null
+          }
+
           const deckId = resolveCanvasDeckId(instanceId)
           const card = deckId ? resolveCard(deckId) : undefined
-          const transform = cardTransforms[instanceId]
-          if (!card || !deckId || !transform) return null
+          const transform =
+            cardTransforms[instanceId]
+            ?? scatterTransform(index, canvasW, canvasH)
+          if (!card || !deckId) return null
 
           return (
             <DeskCard
@@ -99,7 +112,9 @@ export function LabDesk({
               disabled={fusing}
               onFocus={() => onFocusCard(instanceId)}
               onMove={(next) => onMoveCard(instanceId, next)}
-              onFuse={(targetId) => onFuse(instanceId, targetId)}
+              onFuse={(targetId, draggedTransform) =>
+                onFuse(instanceId, targetId, draggedTransform)
+              }
               onCheckOverlap={onCheckOverlap}
               onCheckCatalystOverlap={
                 card.category === 'potion'
@@ -108,8 +123,8 @@ export function LabDesk({
               }
               onCatalystFuse={
                 card.category === 'potion'
-                  ? (ingredientA, ingredientB) =>
-                      onCatalystFuse(instanceId, ingredientA, ingredientB)
+                  ? (ingredientA, ingredientB, draggedTransform) =>
+                      onCatalystFuse(instanceId, ingredientA, ingredientB, draggedTransform)
                   : undefined
               }
               onUse={card.category === 'potion' ? () => onUsePotion(instanceId) : undefined}

@@ -33,8 +33,8 @@ export function LaboratoryScreen() {
   const lab = useGameStore((state) => state.lab)
   const setPhase = useGameStore((state) => state.setPhase)
   const openJournal = useGameStore((state) => state.openJournal)
-  const mergeDeskIntoHand = useGameStore((state) => state.mergeDeskIntoHand)
-  const prepareLabSession = useGameStore((state) => state.prepareLabSession)
+  const initializeLabCanvas = useGameStore((state) => state.initializeLabCanvas)
+  const updateLabCardLayouts = useGameStore((state) => state.updateLabCardLayouts)
   const fuseHandCards = useGameStore((state) => state.fuseHandCards)
   const fuseHandCardsWithCatalyst = useGameStore((state) => state.fuseHandCardsWithCatalyst)
   const drawCard = useGameStore((state) => state.drawCard)
@@ -50,8 +50,8 @@ export function LaboratoryScreen() {
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const zCounter = useRef(1)
-  const mergedDesk = useRef(false)
-  const [cardTransforms, setCardTransforms] = useState<Record<string, CardTransform>>({})
+  const layoutsHydrated = useRef(false)
+  const [cardTransforms, setCardTransformsState] = useState<Record<string, CardTransform>>({})
   const [zOrder, setZOrder] = useState<Record<string, number>>({})
   const [brewAnim, setBrewAnim] = useState<BrewAnimPhase>('idle')
   const [isBrewing, setIsBrewing] = useState(false)
@@ -62,6 +62,7 @@ export function LaboratoryScreen() {
   const brewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fusedInstances = useRef<[string, string] | null>(null)
   const fusedCatalyst = useRef<string | null>(null)
+  const fusionLayoutRef = useRef<Record<string, CardTransform>>({})
 
   const prevDiscoveredCount = useRef(save.discoveredRecipeIds.length)
   const pendingOutcome = useRef<'success' | 'fail'>('success')
@@ -71,13 +72,31 @@ export function LaboratoryScreen() {
     setZOrder((prev) => ({ ...prev, [cardId]: zCounter.current }))
   }, [])
 
+  const setCardTransforms = useCallback(
+    (
+      updater:
+        | Record<string, CardTransform>
+        | ((prev: Record<string, CardTransform>) => Record<string, CardTransform>),
+    ) => {
+      setCardTransformsState((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        updateLabCardLayouts(next)
+        return next
+      })
+    },
+    [updateLabCardLayouts],
+  )
+
   useLayoutEffect(() => {
-    if (!mergedDesk.current) {
-      prepareLabSession()
-      mergeDeskIntoHand()
-      mergedDesk.current = true
+    initializeLabCanvas()
+    if (!layoutsHydrated.current) {
+      const layouts = useGameStore.getState().lab?.cardLayouts
+      if (layouts && Object.keys(layouts).length > 0) {
+        setCardTransformsState(layouts)
+      }
+      layoutsHydrated.current = true
     }
-  }, [mergeDeskIntoHand, prepareLabSession])
+  }, [initializeLabCanvas])
 
   useEffect(() => {
     return () => {
@@ -95,12 +114,35 @@ export function LaboratoryScreen() {
   const canvasCardIds = lab ? getCanvasCardIds(lab) : []
   const rackPotions = lab ? getRackPotionEntries(lab) : []
 
+  const restoreFusionLayout = useCallback((instanceIds: readonly string[]) => {
+    const saved = fusionLayoutRef.current
+    if (instanceIds.length === 0 || Object.keys(saved).length === 0) {
+      return
+    }
+
+    setCardTransforms((prev) => {
+      const next = { ...prev }
+      for (const id of instanceIds) {
+        if (!next[id] && saved[id]) {
+          next[id] = saved[id]
+        }
+      }
+      return next
+    })
+  }, [])
+
   const syncCardLayout = useCallback(() => {
     if (!lab) return
     const canvas = canvasRef.current
     const canvasW = canvas?.clientWidth ?? 600
     const canvasH = canvas?.clientHeight ?? 500
     const ids = getCanvasCardIds(lab)
+    const fusionIds = new Set(
+      [
+        ...(lab.tableSlotInstances ?? []),
+        lab.catalystInstance,
+      ].filter((id): id is string => id !== null),
+    )
     const zUpdates: Record<string, number> = {}
 
     setCardTransforms((prev) => {
@@ -117,7 +159,7 @@ export function LaboratoryScreen() {
       }
 
       for (const id of Object.keys(next)) {
-        if (!ids.includes(id)) {
+        if (!ids.includes(id) && !fusionIds.has(id)) {
           delete next[id]
         }
       }
@@ -144,7 +186,14 @@ export function LaboratoryScreen() {
 
   useEffect(() => {
     syncCardLayout()
-  }, [syncCardLayout, canvasCardIds.join('|'), lab?.handInstanceIds?.join('|')])
+  }, [
+    syncCardLayout,
+    canvasCardIds.join('|'),
+    lab?.handInstanceIds?.join('|'),
+    lab?.tableSlotInstances?.join('|'),
+    lab?.catalystInstance,
+    lab?.deskInstanceIds?.join('|'),
+  ])
 
   useEffect(() => {
     const onResize = () => syncCardLayout()
@@ -164,16 +213,6 @@ export function LaboratoryScreen() {
       brewTimer.current = null
     }
 
-    if (save.reagents < GAME_CONFIG.brewReagentCost) {
-      brew()
-      fusedInstances.current = null
-      setIsMerging(false)
-      setMergingPair(null)
-      setMergeTransforms({})
-      syncCardLayout()
-      return
-    }
-
     setBrewSlots([slotA, slotB])
     setIsBrewing(true)
     setBrewAnim('swirling')
@@ -186,16 +225,23 @@ export function LaboratoryScreen() {
       const outcome = afterBrew?.brewOutcome
       pendingOutcome.current = outcome === 'fail' ? 'fail' : 'success'
 
-      if (outcome === 'success' && fused) {
-        setCardTransforms((prev) => {
-          const next = { ...prev }
-          delete next[fused[0]]
-          delete next[fused[1]]
-          if (fusedCatalyst.current) {
-            delete next[fusedCatalyst.current]
-          }
+      if (afterBrew?.cardLayouts) {
+        setCardTransformsState(afterBrew.cardLayouts)
+      }
+
+      if (outcome === 'fail' && fused) {
+        restoreFusionLayout([
+          ...fused,
+          ...(fusedCatalyst.current ? [fusedCatalyst.current] : []),
+        ])
+        const restoredLayouts = useGameStore.getState().lab?.cardLayouts ?? {}
+        setCardTransformsState((prev) => {
+          const next = { ...restoredLayouts, ...prev }
+          updateLabCardLayouts(next)
           return next
         })
+      } else if (outcome === 'success') {
+        fusionLayoutRef.current = {}
       }
 
       fusedInstances.current = null
@@ -213,16 +259,18 @@ export function LaboratoryScreen() {
         setIsBrewing(false)
         setMergingPair(null)
         setMergeTransforms({})
+        fusionLayoutRef.current = {}
         syncCardLayout()
       }, FLASH_MS)
     }, SWIRL_MS)
-  }, [lab, isBrewing, brew, save.reagents, syncCardLayout])
+  }, [lab, isBrewing, brew, syncCardLayout, restoreFusionLayout, updateLabCardLayouts])
 
   const startFusion = useCallback(
     (
       instanceA: string,
       instanceB: string,
       catalystInstance?: string,
+      dragPositions?: Record<string, CardTransform>,
     ) => {
       if (isBrewing || isMerging || !lab) return
 
@@ -238,11 +286,23 @@ export function LaboratoryScreen() {
 
       if (!isIngredientPair) return
 
+      if (
+        !lab.handInstanceIds.includes(instanceA)
+        || !lab.handInstanceIds.includes(instanceB)
+      ) {
+        return
+      }
+
+      const positions = { ...cardTransforms, ...dragPositions }
       const transforms: Record<string, CardTransform> = {
-        [instanceA]: cardTransforms[instanceA],
-        [instanceB]: cardTransforms[instanceB],
+        [instanceA]: positions[instanceA],
+        [instanceB]: positions[instanceB],
       }
       if (!transforms[instanceA] || !transforms[instanceB]) return
+
+      if (dragPositions) {
+        setCardTransforms((prev) => ({ ...prev, ...dragPositions }))
+      }
 
       if (brewTimer.current) {
         clearTimeout(brewTimer.current)
@@ -267,7 +327,13 @@ export function LaboratoryScreen() {
         setMergingPair(null)
         setMergeTransforms({})
         fusedCatalyst.current = null
+        fusionLayoutRef.current = {}
         return
+      }
+
+      fusionLayoutRef.current = { ...transforms }
+      if (catalystInstance && positions[catalystInstance]) {
+        fusionLayoutRef.current[catalystInstance] = positions[catalystInstance]
       }
 
       setMergingPair([instanceA, instanceB])
@@ -293,25 +359,38 @@ export function LaboratoryScreen() {
   )
 
   const handleFuse = useCallback(
-    (instanceA: string, instanceB: string) => {
+    (
+      draggedInstance: string,
+      targetInstance: string,
+      draggedTransform: CardTransform,
+    ) => {
       if (!lab) return
 
       const catalystInstance = findCatalystPotionForIngredientPair(
-        instanceA,
-        instanceB,
-        cardTransforms,
+        draggedInstance,
+        targetInstance,
+        { ...cardTransforms, [draggedInstance]: draggedTransform },
         getCanvasCardIds(lab),
         (id) => resolveCanvasDeckId(lab, id),
       )
 
-      startFusion(instanceA, instanceB, catalystInstance ?? undefined)
+      startFusion(draggedInstance, targetInstance, catalystInstance ?? undefined, {
+        [draggedInstance]: draggedTransform,
+      })
     },
     [lab, cardTransforms, startFusion],
   )
 
   const handleCatalystFuse = useCallback(
-    (catalystInstance: string, instanceA: string, instanceB: string) => {
-      startFusion(instanceA, instanceB, catalystInstance)
+    (
+      catalystInstance: string,
+      instanceA: string,
+      instanceB: string,
+      draggedTransform: CardTransform,
+    ) => {
+      startFusion(instanceA, instanceB, catalystInstance, {
+        [catalystInstance]: draggedTransform,
+      })
     },
     [startFusion],
   )
@@ -430,10 +509,19 @@ export function LaboratoryScreen() {
   }
 
   const handEntries = lab.hand
-    .map((id) => ({ id, card: resolveCard(id) }))
+    .map((deckId, index) => ({
+      deckId,
+      instanceId: lab.handInstanceIds[index],
+      card: resolveCard(deckId),
+    }))
     .filter(
-      (entry): entry is { id: string; card: NonNullable<ReturnType<typeof resolveCard>> } =>
-        entry.card !== undefined,
+      (
+        entry,
+      ): entry is {
+        deckId: string
+        instanceId: string
+        card: NonNullable<ReturnType<typeof resolveCard>>
+      } => entry.card !== undefined && Boolean(entry.instanceId),
     )
 
   const rank = getPlayerRank(save)
@@ -485,6 +573,10 @@ export function LaboratoryScreen() {
               zOrder={zOrder}
               mergingPair={mergingPair}
               mergeTransforms={mergeTransforms}
+              fusionInstanceIds={[
+                ...(lab.tableSlotInstances ?? []),
+                lab.catalystInstance,
+              ].filter((id): id is string => id !== null)}
               isBrewing={isBrewing}
               isMerging={isMerging}
               resultPotionId={lab.resultPotionId}
@@ -520,11 +612,11 @@ export function LaboratoryScreen() {
           rackPotions={rackPotions}
           resolveCard={resolveCard}
           onPlacePotionOnDesk={handlePlacePotionFromRack}
-          onUseTechnique={(cardId) => {
+          onUseTechnique={(instanceId) => {
             audioService.play('click')
-            playTechniqueCard(cardId)
+            playTechniqueCard(instanceId)
           }}
-          onDiscard={(cardId) => discardFromHand(cardId)}
+          onDiscard={(instanceId) => discardFromHand(instanceId)}
         />
       </div>
     </div>

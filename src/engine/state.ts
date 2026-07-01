@@ -1,6 +1,7 @@
 import type { GamePhase } from '@/engine'
 import type { JournalEntry } from '@/models'
 import type { ActiveOrder } from '@/data/orders'
+import type { CardTransform } from '@/lib/dragDrop'
 
 export interface PotionStack {
   potionId: string
@@ -46,6 +47,10 @@ export interface LabSession {
   brewOutcome: 'idle' | 'success' | 'fail'
   pendingBrew: { recipeId: string; potionId: string } | null
   heatBoostActive: boolean
+  /** Persisted desk positions across journal/settings navigation. */
+  cardLayouts: Record<string, CardTransform>
+  /** True after legacy desk merge runs once per lab visit. */
+  canvasInitialized: boolean
 }
 
 export type ExplorationEventType = 'scroll' | 'curse' | 'bountiful'

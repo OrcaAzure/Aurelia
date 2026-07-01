@@ -18,13 +18,17 @@ interface DeskCardProps {
   disabled?: boolean
   onFocus: () => void
   onMove: (transform: CardTransform) => void
-  onFuse: (targetId: string) => void
+  onFuse: (targetId: string, draggedTransform: CardTransform) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
   onCheckCatalystOverlap?: (
     center: { x: number; y: number },
     excludeId: string,
   ) => [string, string] | null
-  onCatalystFuse?: (ingredientA: string, ingredientB: string) => void
+  onCatalystFuse?: (
+    ingredientA: string,
+    ingredientB: string,
+    draggedTransform: CardTransform,
+  ) => void
   onUse?: () => void
   onReturnToRack?: () => void
   canReturnToRack?: boolean
@@ -93,14 +97,14 @@ export function DeskCard({
     if (card.category === 'potion' && onCheckCatalystOverlap && onCatalystFuse) {
       const pair = onCheckCatalystOverlap(center, cardId)
       if (pair) {
-        onCatalystFuse(pair[0], pair[1])
+        onCatalystFuse(pair[0], pair[1], next)
         return
       }
     }
 
     const overlap = onCheckOverlap(center, cardId)
     if (overlap) {
-      onFuse(overlap)
+      onFuse(overlap, next)
     }
   }
 

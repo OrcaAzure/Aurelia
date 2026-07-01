@@ -6,12 +6,12 @@ import { Card } from '@/ui/components/Card'
 import { RackDraggablePotion } from '@/ui/components/RackDraggablePotion'
 
 interface LabSupportSidebarProps {
-  entries: { id: string; card: GameCard }[]
+  entries: { deckId: string; instanceId: string; card: GameCard }[]
   rackPotions: RackPotionEntry[]
   resolveCard: (id: string) => GameCard | undefined
   onPlacePotionOnDesk: (instanceId: string, point: { x: number; y: number }) => void
-  onUseTechnique: (id: string) => void
-  onDiscard: (id: string) => void
+  onUseTechnique: (instanceId: string) => void
+  onDiscard: (instanceId: string) => void
 }
 
 function SidebarCardSlot({
@@ -71,8 +71,8 @@ export function LabSupportSidebar({
   onUseTechnique,
   onDiscard,
 }: LabSupportSidebarProps) {
-  const techniques = entries.filter(({ id }) => isTechniqueDeckId(id))
-  const residue = entries.filter(({ id }) => isResidueCard(id))
+  const techniques = entries.filter(({ deckId }) => isTechniqueDeckId(deckId))
+  const residue = entries.filter(({ deckId }) => isResidueCard(deckId))
   const hasContent = rackPotions.length + techniques.length + residue.length > 0
 
   return (
@@ -125,13 +125,13 @@ export function LabSupportSidebar({
               Techniques
             </p>
             <div className="flex flex-col items-center gap-3">
-              {techniques.map(({ id, card }) => (
+              {techniques.map(({ instanceId, card }) => (
                 <SidebarCardSlot
-                  key={id}
+                  key={instanceId}
                   card={card}
                   useLabel="Use"
                   useClass="border-amber/40 bg-amber/10 text-amber-light"
-                  onUse={() => onUseTechnique(id)}
+                  onUse={() => onUseTechnique(instanceId)}
                 />
               ))}
             </div>
@@ -144,13 +144,13 @@ export function LabSupportSidebar({
               Residue
             </p>
             <div className="flex flex-col items-center gap-3">
-              {residue.map(({ id, card }) => (
+              {residue.map(({ instanceId, card }) => (
                 <SidebarCardSlot
-                  key={id}
+                  key={instanceId}
                   card={card}
                   useLabel="Discard"
                   useClass=""
-                  onDiscard={() => onDiscard(id)}
+                  onDiscard={() => onDiscard(instanceId)}
                 />
               ))}
             </div>

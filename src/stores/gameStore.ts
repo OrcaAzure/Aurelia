@@ -28,8 +28,10 @@ import {
   fuseDeskCards,
   fuseHandCards,
   fuseHandCardsWithCatalyst,
+  initializeLabCanvas,
   mergeDeskIntoHand,
   prepareLabSession,
+  updateLabCardLayouts,
   playPotionCard,
   playTechniqueCard,
   prepareIngredient,
@@ -68,16 +70,18 @@ type GameStore = GameRuntimeState & {
     catalystInstance: string,
   ) => void
   mergeDeskIntoHand: () => void
+  initializeLabCanvas: () => void
   prepareLabSession: () => void
+  updateLabCardLayouts: (layouts: Record<string, import('@/lib/dragDrop').CardTransform>) => void
   removeCardFromSlot: (slotIndex: 0 | 1) => void
   drawCard: () => void
   brew: () => void
   craftPotionCard: () => void
   bottlePotion: () => void
   playPotionCard: (instanceId: string) => void
-  playTechniqueCard: (deckId: string) => void
+  playTechniqueCard: (instanceId: string) => void
   clearBrewMessage: () => void
-  discardFromHand: (deckId: string) => void
+  discardFromHand: (instanceId: string) => void
   startExploration: (locationId: string) => void
   completeExploration: (ingredientId: string) => void
   addCardToDeck: (cardId: string) => void
@@ -110,7 +114,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   fuseHandCardsWithCatalyst: (instanceA, instanceB, catalystInstance) =>
     set(fuseHandCardsWithCatalyst(get(), instanceA, instanceB, catalystInstance)),
   mergeDeskIntoHand: () => set(mergeDeskIntoHand(get())),
+  initializeLabCanvas: () => set(initializeLabCanvas(get())),
   prepareLabSession: () => set(prepareLabSession(get())),
+  updateLabCardLayouts: (layouts) => set(updateLabCardLayouts(get(), layouts)),
   removeCardFromSlot: (slotIndex) => set(removeCardFromSlot(get(), slotIndex)),
   drawCard: () => set(drawCard(get())),
   brew: () => set(brew(get())),
