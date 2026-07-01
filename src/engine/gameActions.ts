@@ -181,12 +181,31 @@ function rollExplorationEvent(locationId: string): ExplorationEncounter['event']
   return { type: 'curse' as const }
 }
 
+function appendUniqueCardIds(hand: readonly string[], ...ids: (string | null)[]): string[] {
+  const next = [...hand]
+  for (const id of ids) {
+    if (id && !next.includes(id)) {
+      next.push(id)
+    }
+  }
+  return next
+}
+
+function releaseFusedCardsToHand(lab: LabSession): LabSession {
+  const [slotA, slotB] = lab.tableSlots
+  return {
+    ...lab,
+    hand: appendUniqueCardIds(lab.hand, slotA, slotB),
+    tableSlots: [null, null],
+  }
+}
+
 function handleFailedBrew(
   lab: LabSession,
   slotA: string,
   slotB: string,
   resultMessage: string,
-): { lab: LabSession; message: string } {
+): { lab: Partial<LabSession> & { hand: string[]; discardPile: string[]; tableSlots: [string | null, string | null] }; message: string } {
   let message = resultMessage
   const returned: string[] = []
 
@@ -213,9 +232,9 @@ function handleFailedBrew(
 
   return {
     lab: {
-      ...lab,
-      hand: [...lab.hand, ...returned],
+      hand: appendUniqueCardIds(lab.hand, ...returned),
       discardPile,
+      tableSlots: [null, null] as [string | null, string | null],
     },
     message,
   }
@@ -265,6 +284,7 @@ export function startLaboratory(state: GameRuntimeState): GameRuntimeState {
         drawPile: [],
         hand: [],
         discardPile: [],
+        deskCards: [],
         tableSlots: [null, null],
         resultPotionId: null,
         brewMessage: 'Your deck is empty. Visit the Deckbuilder first.',
@@ -358,6 +378,173 @@ export function removeCardFromSlot(
   }
 }
 
+export function placeCardOnDesk(
+  state: GameRuntimeState,
+  cardId: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = state.lab
+  const deskCards = lab.deskCards ?? []
+  if (
+    !isIngredientDeckId(cardId)
+    || isResidueCard(cardId)
+    || !lab.hand.includes(cardId)
+    || deskCards.includes(cardId)
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    selectedCardId: null,
+    lab: {
+      ...lab,
+      hand: lab.hand.filter((id) => id !== cardId),
+      deskCards: [...deskCards, cardId],
+      resultPotionId: null,
+      brewMessage: null,
+      brewOutcome: 'idle',
+    },
+  }
+}
+
+export function returnDeskCardToHand(
+  state: GameRuntimeState,
+  cardId: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = state.lab
+  const deskCards = lab.deskCards ?? []
+  if (!deskCards.includes(cardId)) {
+    return state
+  }
+
+  if (lab.hand.length >= GAME_CONFIG.maxHandSize) {
+    return {
+      ...state,
+      lab: {
+        ...lab,
+        brewMessage: 'Your hand is full — make room before picking cards back up.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
+
+  return {
+    ...state,
+    lab: {
+      ...lab,
+      deskCards: deskCards.filter((id) => id !== cardId),
+      hand: [...lab.hand, cardId],
+      brewMessage: null,
+      brewOutcome: 'idle',
+    },
+  }
+}
+
+export function fuseDeskCards(
+  state: GameRuntimeState,
+  cardA: string,
+  cardB: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = state.lab
+  const deskCards = lab.deskCards ?? []
+  if (
+    cardA === cardB
+    || !deskCards.includes(cardA)
+    || !deskCards.includes(cardB)
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    selectedCardId: null,
+    lab: {
+      ...lab,
+      deskCards: deskCards.filter((id) => id !== cardA && id !== cardB),
+      tableSlots: [cardA, cardB],
+      resultPotionId: null,
+      brewMessage: null,
+      brewOutcome: 'idle',
+    },
+  }
+}
+
+export function fuseHandCards(
+  state: GameRuntimeState,
+  cardA: string,
+  cardB: string,
+): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = state.lab
+  if (
+    cardA === cardB
+    || !lab.hand.includes(cardA)
+    || !lab.hand.includes(cardB)
+    || !isIngredientDeckId(cardA)
+    || !isIngredientDeckId(cardB)
+    || isResidueCard(cardA)
+    || isResidueCard(cardB)
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    selectedCardId: null,
+    lab: {
+      ...lab,
+      hand: lab.hand.filter((id) => id !== cardA && id !== cardB),
+      tableSlots: [cardA, cardB],
+      resultPotionId: null,
+      brewMessage: null,
+      brewOutcome: 'idle',
+    },
+  }
+}
+
+export function mergeDeskIntoHand(state: GameRuntimeState): GameRuntimeState {
+  if (!state.lab) {
+    return state
+  }
+
+  const lab = state.lab
+  let hand = [...lab.hand]
+
+  for (const id of lab.deskCards ?? []) {
+    if (!hand.includes(id)) {
+      hand.push(id)
+    }
+  }
+
+  const [slotA, slotB] = lab.tableSlots
+  hand = appendUniqueCardIds(hand, slotA, slotB)
+
+  return {
+    ...state,
+    lab: {
+      ...lab,
+      hand,
+      deskCards: [],
+      tableSlots: [null, null],
+    },
+  }
+}
+
 export function drawCard(state: GameRuntimeState): GameRuntimeState {
   if (!state.lab) {
     return state
@@ -378,7 +565,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
       ...state,
       lab: {
         ...lab,
-        brewMessage: 'Place two ingredients in the circle before brewing.',
+        brewMessage: 'Stack two ingredients on the desk by dragging one onto another.',
         brewOutcome: 'fail',
       },
     }
@@ -395,7 +582,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     return {
       ...state,
       lab: {
-        ...lab,
+        ...releaseFusedCardsToHand(lab),
         brewMessage: `Not enough reagents. You need ${reagentCost} reagent(s) to brew.`,
         brewOutcome: 'fail',
       },
@@ -534,7 +721,13 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     }
   } else {
     const failed = handleFailedBrew(lab, slotA, slotB, result.message)
-    labNext = { ...labNext, ...failed.lab, brewMessage: failed.message }
+    labNext = {
+      ...labNext,
+      hand: failed.lab.hand,
+      discardPile: failed.lab.discardPile,
+      tableSlots: failed.lab.tableSlots,
+      brewMessage: failed.message,
+    }
     if (result.nearMiss) {
       entries.unshift(
         createJournalEntry({

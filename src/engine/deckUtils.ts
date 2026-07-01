@@ -24,6 +24,7 @@ export function createLabSession(deck: readonly string[]): LabSession {
     drawPile,
     hand,
     discardPile: [],
+    deskCards: [],
     tableSlots: [null, null],
     resultPotionId: null,
     brewMessage: null,

@@ -70,7 +70,7 @@ export function DeckbuildingScreen() {
                   title="Click to remove"
                   whileHover={{ scale: 1.03 }}
                 >
-                  <Card card={card} compact />
+                  <Card card={card} compact flippable />
                   <span className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-red-900/80 text-xs text-parchment group-hover:flex">
                     ×
                   </span>
@@ -100,7 +100,7 @@ export function DeckbuildingScreen() {
                   key={deckId}
                   className="flex items-center gap-3 rounded-xl border border-vial/20 bg-vial/5 p-3"
                 >
-                  <Card card={card} compact />
+                  <Card card={card} compact flippable />
                   <div>
                     <p className="text-xs text-parchment/50">In deck: {inDeck}</p>
                     <button
@@ -139,7 +139,7 @@ export function DeckbuildingScreen() {
                 key={deckId}
                 className="flex items-center gap-3 rounded-xl border border-amber/20 bg-amber/5 p-3"
               >
-                <Card card={card} compact />
+                <Card card={card} compact flippable />
                 <div>
                   <p className="text-xs text-parchment/50">In deck: {inDeck}</p>
                   <button
@@ -172,7 +172,7 @@ export function DeckbuildingScreen() {
                 key={ingredient.id}
                 className="flex items-center gap-3 rounded-xl border border-parchment-dark/20 bg-ink/40 p-3"
               >
-                <Card card={card} compact />
+                <Card card={card} compact flippable />
                 <div className="flex-1">
                   <p className="text-xs text-parchment/50">In deck: {inDeck}</p>
                   <button

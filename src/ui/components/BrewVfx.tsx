@@ -45,6 +45,18 @@ export function BrewVfx({ phase, outcome, slotA, slotB }: BrewVfxProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
+            <motion.div
+              className="absolute left-1/2 top-1/2 h-28 w-20 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-amber/50 bg-ink/60"
+              initial={{ scale: 1.2, opacity: 0.9, y: -20 }}
+              animate={{ scale: 0.2, opacity: 0, y: 0, rotate: [0, 12, -8, 0] }}
+              transition={{ duration: 0.35, ease: 'easeIn' }}
+            />
+            <motion.div
+              className="absolute left-1/2 top-1/2 h-28 w-20 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-amber/40 bg-ink/50"
+              initial={{ scale: 1.1, opacity: 0.85, y: 16, rotate: 8 }}
+              animate={{ scale: 0.2, opacity: 0, y: 0, rotate: [8, -6, 0] }}
+              transition={{ duration: 0.35, ease: 'easeIn', delay: 0.04 }}
+            />
             {Array.from({ length: 12 }).map((_, i) => {
               const angle = (i / 12) * Math.PI * 2
               const startX = Math.cos(angle) * 140

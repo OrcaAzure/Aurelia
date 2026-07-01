@@ -24,6 +24,10 @@
 }
 
 @layer components {
+  .transform-3d {
+    transform-style: preserve-3d;
+  }
+
   .lab-desk {
     background:
       linear-gradient(180deg, rgba(26, 20, 16, 0.6) 0%, rgba(20, 15, 10, 0.95) 100%),

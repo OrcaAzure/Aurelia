@@ -1,25 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { audioService } from '@/audio'
 import { GAME_CONFIG } from '@/config'
+import {
+  clampToCanvas,
+  findOverlappingCard,
+  scatterTransform,
+  type CardTransform,
+} from '@/lib/dragDrop'
 import { getPlayerRank, resolveCard, useGameStore } from '@/stores/gameStore'
-import { AlchemyCircle } from '@/ui/components/AlchemyCircle'
 import { BrewVfx, type BrewAnimPhase } from '@/ui/components/BrewVfx'
-import { DeckStats } from '@/ui/components/DeckStats'
-import { Hand } from '@/ui/components/Hand'
+import { LabDeckPanel } from '@/ui/components/LabDeckPanel'
+import { LabDesk } from '@/ui/components/LabDesk'
+import { getIngredientTableIds } from '@/ui/components/LabSupportTray'
+import { LabSupportSidebar } from '@/ui/components/LabSupportSidebar'
 import { LaboratoryTopBar } from '@/ui/components/LaboratoryTopBar'
 
+const MERGE_MS = 400
 const SWIRL_MS = 650
 const FLASH_MS = 500
 
 export function LaboratoryScreen() {
   const save = useGameStore((state) => state.save)
   const lab = useGameStore((state) => state.lab)
-  const selectedCardId = useGameStore((state) => state.selectedCardId)
   const setPhase = useGameStore((state) => state.setPhase)
   const openJournal = useGameStore((state) => state.openJournal)
-  const selectCard = useGameStore((state) => state.selectCard)
-  const placeCardInSlot = useGameStore((state) => state.placeCardInSlot)
-  const removeCardFromSlot = useGameStore((state) => state.removeCardFromSlot)
+  const mergeDeskIntoHand = useGameStore((state) => state.mergeDeskIntoHand)
+  const fuseHandCards = useGameStore((state) => state.fuseHandCards)
   const drawCard = useGameStore((state) => state.drawCard)
   const brew = useGameStore((state) => state.brew)
   const craftPotionCard = useGameStore((state) => state.craftPotionCard)
@@ -29,13 +35,33 @@ export function LaboratoryScreen() {
   const discardFromHand = useGameStore((state) => state.discardFromHand)
   const clearBrewMessage = useGameStore((state) => state.clearBrewMessage)
 
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const zCounter = useRef(1)
+  const mergedDesk = useRef(false)
+  const [cardTransforms, setCardTransforms] = useState<Record<string, CardTransform>>({})
+  const [zOrder, setZOrder] = useState<Record<string, number>>({})
   const [brewAnim, setBrewAnim] = useState<BrewAnimPhase>('idle')
   const [isBrewing, setIsBrewing] = useState(false)
+  const [isMerging, setIsMerging] = useState(false)
+  const [mergingPair, setMergingPair] = useState<[string, string] | null>(null)
+  const [mergeTransforms, setMergeTransforms] = useState<Record<string, CardTransform>>({})
   const [brewSlots, setBrewSlots] = useState<[string | null, string | null]>([null, null])
   const brewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const prevDiscoveredCount = useRef(save.discoveredRecipeIds.length)
   const pendingOutcome = useRef<'success' | 'fail'>('success')
+
+  const bringToFront = useCallback((cardId: string) => {
+    zCounter.current += 1
+    setZOrder((prev) => ({ ...prev, [cardId]: zCounter.current }))
+  }, [])
+
+  useEffect(() => {
+    if (!mergedDesk.current) {
+      mergeDeskIntoHand()
+      mergedDesk.current = true
+    }
+  }, [mergeDeskIntoHand])
 
   useEffect(() => {
     return () => {
@@ -50,13 +76,80 @@ export function LaboratoryScreen() {
     prevDiscoveredCount.current = save.discoveredRecipeIds.length
   }, [save.discoveredRecipeIds.length])
 
+  const tableCardIds = lab ? getIngredientTableIds(lab.hand) : []
+
+  const syncCardLayout = useCallback(() => {
+    if (!lab) return
+    const canvas = canvasRef.current
+    const canvasW = canvas?.clientWidth ?? 600
+    const canvasH = canvas?.clientHeight ?? 500
+    const zUpdates: Record<string, number> = {}
+
+    setCardTransforms((prev) => {
+      const next = { ...prev }
+      let scatterIndex = 0
+
+      for (const id of tableCardIds) {
+        if (!next[id]) {
+          next[id] = scatterTransform(scatterIndex, canvasW, canvasH)
+          zCounter.current += 1
+          zUpdates[id] = zCounter.current
+          scatterIndex += 1
+        }
+      }
+
+      for (const id of Object.keys(next)) {
+        if (!tableCardIds.includes(id)) {
+          delete next[id]
+        }
+      }
+      return next
+    })
+
+    if (Object.keys(zUpdates).length > 0) {
+      setZOrder((prev) => ({ ...prev, ...zUpdates }))
+    }
+
+    setZOrder((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const id of Object.keys(next)) {
+        if (!tableCardIds.includes(id)) {
+          delete next[id]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [lab, tableCardIds])
+
+  useEffect(() => {
+    syncCardLayout()
+  }, [syncCardLayout, tableCardIds.join('|')])
+
+  useEffect(() => {
+    const onResize = () => syncCardLayout()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [syncCardLayout])
+
   const handleBrew = useCallback(() => {
     if (!lab || isBrewing) return
-    const [slotA, slotB] = lab.tableSlots
+    const currentLab = useGameStore.getState().lab
+    if (!currentLab) return
+    const [slotA, slotB] = currentLab.tableSlots
     if (!slotA || !slotB) return
+
+    if (brewTimer.current) {
+      clearTimeout(brewTimer.current)
+      brewTimer.current = null
+    }
 
     if (save.reagents < GAME_CONFIG.brewReagentCost) {
       brew()
+      setIsMerging(false)
+      setMergingPair(null)
+      setMergeTransforms({})
       return
     }
 
@@ -67,7 +160,8 @@ export function LaboratoryScreen() {
 
     brewTimer.current = setTimeout(() => {
       brew()
-      const outcome = useGameStore.getState().lab?.brewOutcome
+      const afterBrew = useGameStore.getState().lab
+      const outcome = afterBrew?.brewOutcome
       pendingOutcome.current = outcome === 'fail' ? 'fail' : 'success'
       if (outcome === 'success') {
         audioService.play('brew-success')
@@ -79,9 +173,82 @@ export function LaboratoryScreen() {
       brewTimer.current = setTimeout(() => {
         setBrewAnim('idle')
         setIsBrewing(false)
+        setMergingPair(null)
+        setMergeTransforms({})
+        if (afterBrew?.brewOutcome === 'fail') {
+          syncCardLayout()
+        }
       }, FLASH_MS)
     }, SWIRL_MS)
-  }, [lab, isBrewing, brew, save.reagents])
+  }, [lab, isBrewing, brew, save.reagents, syncCardLayout])
+
+  const handleFuse = useCallback(
+    (cardA: string, cardB: string) => {
+      if (isBrewing || isMerging) return
+
+      const transforms = {
+        [cardA]: cardTransforms[cardA],
+        [cardB]: cardTransforms[cardB],
+      }
+      if (!transforms[cardA] || !transforms[cardB]) return
+
+      if (brewTimer.current) {
+        clearTimeout(brewTimer.current)
+        brewTimer.current = null
+      }
+
+      fuseHandCards(cardA, cardB)
+
+      const fused = useGameStore.getState().lab
+      if (
+        !fused
+        || fused.tableSlots[0] !== cardA
+        || fused.tableSlots[1] !== cardB
+      ) {
+        setIsMerging(false)
+        setMergingPair(null)
+        setMergeTransforms({})
+        return
+      }
+
+      setMergingPair([cardA, cardB])
+      setMergeTransforms(transforms)
+      setIsMerging(true)
+      audioService.play('click')
+
+      setCardTransforms((prev) => {
+        const next = { ...prev }
+        delete next[cardA]
+        delete next[cardB]
+        return next
+      })
+
+      brewTimer.current = setTimeout(() => {
+        setIsMerging(false)
+        handleBrew()
+      }, MERGE_MS)
+    },
+    [isBrewing, isMerging, cardTransforms, fuseHandCards, handleBrew],
+  )
+
+  const handleMoveCard = useCallback((cardId: string, transform: CardTransform) => {
+    if (!canvasRef.current) return
+    const clamped = clampToCanvas(transform, canvasRef.current)
+    setCardTransforms((prev) => ({ ...prev, [cardId]: clamped }))
+  }, [])
+
+  const handleCheckOverlap = useCallback(
+    (center: { x: number; y: number }, excludeId: string) => {
+      if (!lab) return null
+      return findOverlappingCard(
+        center,
+        cardTransforms,
+        getIngredientTableIds(lab.hand),
+        excludeId,
+      )
+    },
+    [lab, cardTransforms],
+  )
 
   if (!lab) {
     return null
@@ -89,7 +256,10 @@ export function LaboratoryScreen() {
 
   const handEntries = lab.hand
     .map((id) => ({ id, card: resolveCard(id) }))
-    .filter((entry): entry is { id: string; card: NonNullable<ReturnType<typeof resolveCard>> } => entry.card !== undefined)
+    .filter(
+      (entry): entry is { id: string; card: NonNullable<ReturnType<typeof resolveCard>> } =>
+        entry.card !== undefined,
+    )
 
   const rank = getPlayerRank(save)
   const flashOutcome =
@@ -100,7 +270,7 @@ export function LaboratoryScreen() {
         : 'idle'
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-ink">
       <LaboratoryTopBar
         playerName={save.playerName}
         rank={rank}
@@ -112,70 +282,68 @@ export function LaboratoryScreen() {
         onBack={() => setPhase('menu')}
       />
 
-      <div className="lab-desk relative flex flex-1 flex-col overflow-visible">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(196,122,44,0.12),transparent_55%)]" />
+      <div className="lab-desk flex min-h-0 flex-1">
+        <LabDeckPanel
+          deckCount={lab.drawPile.length}
+          discardCount={lab.discardPile.length}
+          onDraw={() => {
+            audioService.play('draw')
+            drawCard()
+          }}
+        />
 
-        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-8">
-          <div className="relative">
-            <BrewVfx
-              phase={brewAnim}
-              outcome={flashOutcome}
-              slotA={brewSlots[0]}
-              slotB={brewSlots[1]}
-            />
-            <AlchemyCircle
-              slots={isBrewing ? brewSlots : lab.tableSlots}
+        <main className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(196,122,44,0.09),transparent_62%)]" />
+
+          <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-parchment/28">
+            Drag cards · Stack to fuse · Tap i for info
+          </p>
+
+          <div className="absolute inset-0 pt-8">
+            <LabDesk
+              canvasRef={canvasRef}
+              tableCardIds={tableCardIds}
+              cardTransforms={cardTransforms}
+              zOrder={zOrder}
+              mergingPair={mergingPair}
+              mergeTransforms={mergeTransforms}
+              isBrewing={isBrewing}
+              isMerging={isMerging}
               resultPotionId={lab.resultPotionId}
               brewMessage={lab.brewMessage}
               brewOutcome={lab.brewOutcome}
               pendingBrew={lab.pendingBrew}
-              selectedCardId={selectedCardId}
-              isBrewing={isBrewing}
               resolveCard={resolveCard}
-              onRemoveFromSlot={removeCardFromSlot}
-              onPlaceInSlot={(slotIndex) => {
-                if (selectedCardId && !isBrewing) {
-                  placeCardInSlot(selectedCardId, slotIndex)
-                }
-              }}
-              onBrew={handleBrew}
+              onFocusCard={bringToFront}
+              onMoveCard={handleMoveCard}
+              onFuse={handleFuse}
+              onCheckOverlap={handleCheckOverlap}
               onCraft={craftPotionCard}
               onBottle={bottlePotion}
               onDismissMessage={clearBrewMessage}
             />
           </div>
-        </div>
 
-        <div className="relative z-10 border-t border-amber/15 bg-ink/70 px-6 py-6 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-5xl flex-col gap-6">
-            <DeckStats
-              deckCount={lab.drawPile.length}
-              discardCount={lab.discardPile.length}
-              onDraw={() => {
-                audioService.play('draw')
-                drawCard()
-              }}
-            />
-            <Hand
-              cards={handEntries.map((e) => e.card)}
-              cardIds={handEntries.map((e) => e.id)}
-              selectedCardId={selectedCardId}
-              onSelectCard={(cardId) =>
-                selectCard(selectedCardId === cardId ? null : cardId)
-              }
-              onCardDrop={(cardId, slotIndex) => placeCardInSlot(cardId, slotIndex)}
-              onUsePotion={(cardId) => {
-                audioService.play('click')
-                playPotionCard(cardId)
-              }}
-              onUseTechnique={(cardId) => {
-                audioService.play('click')
-                playTechniqueCard(cardId)
-              }}
-              onDiscard={(cardId) => discardFromHand(cardId)}
-            />
-          </div>
-        </div>
+          <BrewVfx
+            phase={brewAnim}
+            outcome={flashOutcome}
+            slotA={brewSlots[0]}
+            slotB={brewSlots[1]}
+          />
+        </main>
+
+        <LabSupportSidebar
+          entries={handEntries}
+          onUsePotion={(cardId) => {
+            audioService.play('click')
+            playPotionCard(cardId)
+          }}
+          onUseTechnique={(cardId) => {
+            audioService.play('click')
+            playTechniqueCard(cardId)
+          }}
+          onDiscard={(cardId) => discardFromHand(cardId)}
+        />
       </div>
     </div>
   )

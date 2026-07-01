@@ -34,6 +34,7 @@ export interface LabSession {
   drawPile: string[]
   hand: string[]
   discardPile: string[]
+  deskCards: string[]
   tableSlots: [string | null, string | null]
   resultPotionId: string | null
   brewMessage: string | null

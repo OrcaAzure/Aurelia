@@ -22,7 +22,7 @@ export function LaboratoryTopBar({
   onBack,
 }: LaboratoryTopBarProps) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-amber/20 bg-ink/60 px-6 py-4 backdrop-blur-sm">
+    <header className="relative z-50 flex flex-wrap items-center justify-between gap-4 border-b border-amber/15 bg-ink/50 px-6 py-3 backdrop-blur-md">
       <div className="flex items-center gap-4">
         <button
           type="button"

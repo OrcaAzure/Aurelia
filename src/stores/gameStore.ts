@@ -21,6 +21,11 @@ import {
   getUndiscoveredRecipeHints,
   openJournal,
   placeCardInSlot,
+  placeCardOnDesk,
+  returnDeskCardToHand,
+  fuseDeskCards,
+  fuseHandCards,
+  mergeDeskIntoHand,
   playPotionCard,
   playTechniqueCard,
   prepareIngredient,
@@ -47,6 +52,11 @@ type GameStore = GameRuntimeState & {
   startLaboratory: () => void
   selectCard: (cardId: string | null) => void
   placeCardInSlot: (cardId: string, slotIndex: 0 | 1) => void
+  placeCardOnDesk: (cardId: string) => void
+  returnDeskCardToHand: (cardId: string) => void
+  fuseDeskCards: (cardA: string, cardB: string) => void
+  fuseHandCards: (cardA: string, cardB: string) => void
+  mergeDeskIntoHand: () => void
   removeCardFromSlot: (slotIndex: 0 | 1) => void
   drawCard: () => void
   brew: () => void
@@ -79,6 +89,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   selectCard: (cardId) => set(selectCard(get(), cardId)),
   placeCardInSlot: (cardId, slotIndex) =>
     set(placeCardInSlot(get(), cardId, slotIndex)),
+  placeCardOnDesk: (cardId) => set(placeCardOnDesk(get(), cardId)),
+  returnDeskCardToHand: (cardId) => set(returnDeskCardToHand(get(), cardId)),
+  fuseDeskCards: (cardA, cardB) => set(fuseDeskCards(get(), cardA, cardB)),
+  fuseHandCards: (cardA, cardB) => set(fuseHandCards(get(), cardA, cardB)),
+  mergeDeskIntoHand: () => set(mergeDeskIntoHand(get())),
   removeCardFromSlot: (slotIndex) => set(removeCardFromSlot(get(), slotIndex)),
   drawCard: () => set(drawCard(get())),
   brew: () => set(brew(get())),

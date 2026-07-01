@@ -69,7 +69,7 @@ export function ExplorationScreen() {
                 }}
                 className="text-left"
               >
-                <Card card={card} />
+                <Card card={card} flippable />
                 {isNew && (
                   <span className="mt-2 block text-center text-xs uppercase tracking-widest text-moss">
                     New!
