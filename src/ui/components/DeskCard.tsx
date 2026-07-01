@@ -19,6 +19,7 @@ interface DeskCardProps {
   onMove: (transform: CardTransform) => void
   onFuse: (targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
+  onUse?: () => void
 }
 
 export function DeskCard({
@@ -31,29 +32,38 @@ export function DeskCard({
   onMove,
   onFuse,
   onCheckOverlap,
+  onUse,
 }: DeskCardProps) {
   const x = useMotionValue(transform.x)
   const y = useMotionValue(transform.y)
-  const dragMoved = useRef(false)
+  const dragOrigin = useRef(transform)
   const [isDragging, setIsDragging] = useState(false)
   const [flipped, setFlipped] = useState(false)
 
   useEffect(() => {
-    if (!isDragging) {
-      x.set(transform.x)
-      y.set(transform.y)
-    }
+    if (isDragging) return
+    x.set(transform.x)
+    y.set(transform.y)
   }, [transform.x, transform.y, isDragging, x, y])
+
+  const handleDragStart = () => {
+    dragOrigin.current = transform
+    setIsDragging(true)
+    onFocus()
+  }
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
     setIsDragging(false)
     if (disabled || flipped) return
 
     const next: CardTransform = {
-      x: transform.x + info.offset.x,
-      y: transform.y + info.offset.y,
-      rotate: transform.rotate + info.offset.x * 0.035,
+      x: dragOrigin.current.x + info.offset.x,
+      y: dragOrigin.current.y + info.offset.y,
+      rotate: dragOrigin.current.rotate + info.offset.x * 0.02,
     }
+
+    x.set(next.x)
+    y.set(next.y)
     onMove(next)
 
     const center = {
@@ -64,11 +74,10 @@ export function DeskCard({
     if (overlap) {
       onFuse(overlap)
     }
-
-    dragMoved.current = false
   }
 
   const canDrag = !disabled && !flipped
+  const showTilt = canDrag && !isDragging
 
   const cardNode = (
     <Card
@@ -83,52 +92,51 @@ export function DeskCard({
 
   return (
     <motion.div
+      layout={false}
       drag={canDrag}
       dragMomentum={false}
-      dragElastic={0.05}
+      dragElastic={0}
+      dragPropagation={false}
       style={{
         x,
         y,
-        rotate: flipped ? 0 : transform.rotate,
+        rotate: transform.rotate,
         position: 'absolute',
         top: 0,
         left: 0,
         zIndex: isDragging || flipped ? 500 : zIndex,
         width: DESK_CARD_WIDTH,
+        touchAction: 'none',
       }}
-      whileDrag={
-        canDrag
-          ? {
-              scale: 1.05,
-              rotate: transform.rotate + 4,
-              boxShadow: '0 36px 72px rgba(0,0,0,0.7)',
-              cursor: 'grabbing',
-            }
-          : undefined
-      }
-      onDragStart={() => {
-        if (!canDrag) return
-        dragMoved.current = false
-        setIsDragging(true)
-        onFocus()
+      whileDrag={{
+        scale: 1.03,
+        cursor: 'grabbing',
       }}
-      onDrag={(_e, info) => {
-        if (Math.abs(info.offset.x) > 4 || Math.abs(info.offset.y) > 4) {
-          dragMoved.current = true
-        }
-      }}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       className={[
-        'touch-none drop-shadow-[0_18px_36px_rgba(0,0,0,0.45)]',
-        canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-default',
+        'select-none',
+        isDragging
+          ? 'cursor-grabbing shadow-[0_24px_48px_rgba(0,0,0,0.55)]'
+          : 'cursor-grab drop-shadow-[0_12px_28px_rgba(0,0,0,0.4)] active:cursor-grabbing',
       ].join(' ')}
     >
-      {flipped ? (
-        cardNode
+      {showTilt ? (
+        <DraggableCardBody>{cardNode}</DraggableCardBody>
       ) : (
-        <DraggableCardBody interactive={canDrag && !isDragging}>
-          {cardNode}
-        </DraggableCardBody>
+        cardNode
+      )}
+      {onUse && !isDragging && !flipped && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onUse()
+          }}
+          className="absolute -bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-vial/45 bg-ink/90 px-3 py-0.5 text-[9px] uppercase tracking-widest text-vial shadow-md hover:border-vial hover:bg-vial/15"
+        >
+          Use
+        </button>
       )}
     </motion.div>
   )

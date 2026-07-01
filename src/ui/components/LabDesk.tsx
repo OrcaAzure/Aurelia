@@ -29,6 +29,7 @@ interface LabDeskProps {
   onMoveCard: (cardId: string, transform: CardTransform) => void
   onFuse: (cardId: string, targetId: string) => void
   onCheckOverlap: (center: { x: number; y: number }, excludeId: string) => string | null
+  onUsePotion: (cardId: string) => void
   onCraft: () => void
   onBottle: () => void
   onDismissMessage: () => void
@@ -52,6 +53,7 @@ export function LabDesk({
   onMoveCard,
   onFuse,
   onCheckOverlap,
+  onUsePotion,
   onCraft,
   onBottle,
   onDismissMessage,
@@ -83,6 +85,7 @@ export function LabDesk({
               onMove={(next) => onMoveCard(cardId, next)}
               onFuse={(targetId) => onFuse(cardId, targetId)}
               onCheckOverlap={onCheckOverlap}
+              onUse={card.category === 'potion' ? () => onUsePotion(cardId) : undefined}
             />
           )
         })}

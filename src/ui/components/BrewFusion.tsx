@@ -134,7 +134,7 @@ export function BrewFusion({
                     }}
                     title="Return to hand"
                   >
-                    <DraggableCardBody interactive={!fusing}>
+                    <DraggableCardBody>
                       <Card card={cardA} compact motionless />
                     </DraggableCardBody>
                   </button>
@@ -164,7 +164,7 @@ export function BrewFusion({
                     }}
                     title="Return to hand"
                   >
-                    <DraggableCardBody interactive={!fusing}>
+                    <DraggableCardBody>
                       <Card card={cardB} compact motionless />
                     </DraggableCardBody>
                   </button>

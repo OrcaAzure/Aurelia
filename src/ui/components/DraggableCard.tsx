@@ -22,10 +22,8 @@ export function DraggableCard({
   const dragMoved = useRef(false)
   const elementRef = useRef<HTMLDivElement>(null)
   const [flipped, setFlipped] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
-    setIsDragging(false)
     if (elementRef.current) {
       elementRef.current.style.pointerEvents = 'none'
     }
@@ -54,7 +52,6 @@ export function DraggableCard({
       }}
       onDragStart={() => {
         dragMoved.current = false
-        setIsDragging(true)
       }}
       onDrag={(_e, info) => {
         if (Math.abs(info.offset.x) > 4 || Math.abs(info.offset.y) > 4) {
@@ -70,7 +67,7 @@ export function DraggableCard({
       className="cursor-grab touch-none active:cursor-grabbing"
       style={{ position: 'relative', zIndex: selected ? 20 : 1 }}
     >
-      <DraggableCardBody interactive={!isDragging}>
+      <DraggableCardBody>
         <Card
           card={card}
           selected={selected}
