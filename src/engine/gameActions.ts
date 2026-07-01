@@ -185,30 +185,30 @@ function handleFailedBrew(
   lab: LabSession,
   slotA: string,
   slotB: string,
-  save: GameSaveData,
   resultMessage: string,
-): { lab: LabSession; save: GameSaveData; message: string } {
-  const returned: string[] = []
+): { lab: LabSession; message: string } {
   let message = resultMessage
+  const returned: string[] = []
 
   for (const cardId of [slotA, slotB]) {
-    if (
-      isVolatileIngredient(cardId)
+    const consumed =
+      GAME_CONFIG.volatileConsumeChance > 0
+      && isVolatileIngredient(cardId)
       && Math.random() < GAME_CONFIG.volatileConsumeChance
-    ) {
+    if (consumed) {
       message += ` ${ingredientDisplayName(cardId)} was consumed by the volatile reaction.`
-      if (!save.journalEntries.some((e) => e.title.includes('Volatile loss'))) {
-        // no extra journal spam
-      }
     } else {
       returned.push(cardId)
     }
   }
 
   let discardPile = [...lab.discardPile]
-  if (canAddToDeck(save.playerDeck, GAME_CONFIG.residueCardId)) {
+  if (
+    GAME_CONFIG.residueOnFailChance > 0
+    && Math.random() < GAME_CONFIG.residueOnFailChance
+  ) {
     discardPile.push(GAME_CONFIG.residueCardId)
-    message += ' A sticky Residue clogs your discard pile.'
+    message += ' A bit of Residue settles in your discard pile — use Filter to clear it.'
   }
 
   return {
@@ -217,7 +217,6 @@ function handleFailedBrew(
       hand: [...lab.hand, ...returned],
       discardPile,
     },
-    save,
     message,
   }
 }
@@ -385,7 +384,7 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     }
   }
 
-  const result = matchRecipe(slotA, slotB)
+  const result = matchRecipe(slotA, slotB, state.save.discoveredRecipeIds)
   const recipeId = result.recipe?.id
   const hadHeatBoost = lab.heatBoostActive
   const reagentCost = recipeId
@@ -403,11 +402,8 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     }
   }
 
-  let save = {
-    ...state.save,
-    reagents: state.save.reagents - reagentCost,
-  }
-  const entries = [...save.journalEntries]
+  const entries = [...state.save.journalEntries]
+  let save = { ...state.save }
   let labNext: LabSession = {
     ...lab,
     tableSlots: [null, null],
@@ -419,6 +415,11 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
   }
 
   if (result.success && result.recipe) {
+    save = {
+      ...save,
+      reagents: save.reagents - reagentCost,
+    }
+
     labNext = {
       ...labNext,
       discardPile: [...lab.discardPile, slotA, slotB],
@@ -507,14 +508,16 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
             : lab.hand,
         resultPotionId: null,
       }
-      entries.unshift(
-        createJournalEntry({
-          kind: 'experiment',
-          title: `Transmuted ${result.transmuteName}`,
-          body: 'A new material has been added to your deck and collection.',
-          relatedIds: [transmuteId],
-        }),
-      )
+      if (!save.discoveredIngredientIds.includes(transmuteId)) {
+        entries.unshift(
+          createJournalEntry({
+            kind: 'experiment',
+            title: `Transmuted ${result.transmuteName}`,
+            body: 'A new material has been added to your collection.',
+            relatedIds: [transmuteId],
+          }),
+        )
+      }
     } else if (result.recipe.resultPotionId) {
       labNext = {
         ...labNext,
@@ -524,28 +527,24 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
           potionId: result.recipe.resultPotionId,
         },
       }
-      if (!isNew) {
-        entries.unshift(
-          createJournalEntry({
-            kind: 'experiment',
-            title: `Brewed ${result.potionName}`,
-            body: 'Craft it as a card or bottle it for gold.',
-            relatedIds: [result.recipe.id],
-          }),
-        )
-      }
+    }
+
+    if (GAME_CONFIG.drawAfterSuccessfulBrew > 0) {
+      labNext = drawFromLab(labNext, GAME_CONFIG.drawAfterSuccessfulBrew)
     }
   } else {
-    const failed = handleFailedBrew(lab, slotA, slotB, save, result.message)
+    const failed = handleFailedBrew(lab, slotA, slotB, result.message)
     labNext = { ...labNext, ...failed.lab, brewMessage: failed.message }
-    entries.unshift(
-      createJournalEntry({
-        kind: 'experiment',
-        title: result.nearMiss ? 'Almost…' : 'Failed Experiment',
-        body: failed.message,
-        relatedIds: [slotA, slotB],
-      }),
-    )
+    if (result.nearMiss) {
+      entries.unshift(
+        createJournalEntry({
+          kind: 'experiment',
+          title: 'Almost…',
+          body: failed.message,
+          relatedIds: [slotA, slotB],
+        }),
+      )
+    }
   }
 
   save = { ...save, journalEntries: entries }
@@ -561,23 +560,32 @@ export function craftPotionCard(state: GameRuntimeState): GameRuntimeState {
   const deckId = potionDeckId(potionId)
   let save = updateOrders(state.save, { type: 'craft' })
   let hand = [...state.lab.hand]
+  let discardPile = [...state.lab.discardPile]
+  let brewMessage = `${POTION_MAP.get(potionId)?.name ?? 'Potion'} crafted as a card!`
 
   if (canAddToDeck(save.playerDeck, deckId)) {
     save.playerDeck = [...save.playerDeck, deckId]
-  }
-  if (hand.length < GAME_CONFIG.maxHandSize) {
+    if (hand.length < GAME_CONFIG.maxHandSize) {
+      hand.push(deckId)
+    } else {
+      discardPile.push(deckId)
+      brewMessage += ' (Added to deck — draw pile full, card went to discard.)'
+    }
+  } else if (hand.length < GAME_CONFIG.maxHandSize) {
     hand.push(deckId)
+    brewMessage += ' (Support deck full — card is in your hand for this visit only.)'
+  } else {
+    discardPile.push(deckId)
+    brewMessage += ' (Support deck full — card went to discard for this visit.)'
   }
 
   const lab: LabSession = {
     ...state.lab,
     hand,
+    discardPile,
     pendingBrew: null,
-    brewMessage: `${POTION_MAP.get(potionId)?.name ?? 'Potion'} crafted as a card!`,
-    discardPile:
-      hand.length >= GAME_CONFIG.maxHandSize && !state.lab.hand.includes(deckId)
-        ? [...state.lab.discardPile, deckId]
-        : state.lab.discardPile,
+    brewMessage,
+    brewOutcome: 'success',
   }
 
   return syncSave({ ...state, lab, save }, save)
@@ -753,11 +761,30 @@ export function clearBrewMessage(state: GameRuntimeState): GameRuntimeState {
     lab: {
       ...state.lab,
       brewMessage: null,
-      resultPotionId: null,
-      brewOutcome: 'idle',
-      pendingBrew: null,
+      brewOutcome: state.lab.pendingBrew ? state.lab.brewOutcome : 'idle',
     },
   }
+}
+
+export function discardFromHand(
+  state: GameRuntimeState,
+  deckId: string,
+): GameRuntimeState {
+  if (!state.lab || !state.lab.hand.includes(deckId)) {
+    return state
+  }
+
+  const lab: LabSession = {
+    ...state.lab,
+    hand: state.lab.hand.filter((id) => id !== deckId),
+    discardPile: [...state.lab.discardPile, deckId],
+    brewMessage: isResidueCard(deckId)
+      ? 'Residue discarded.'
+      : `Discarded ${ingredientDisplayName(deckId)}.`,
+    brewOutcome: 'idle',
+  }
+
+  return { ...state, lab }
 }
 
 export function startExploration(
@@ -846,16 +873,16 @@ export function completeExploration(
     }
   }
 
-  if (event?.type === 'curse' && canAddToDeck(save.playerDeck, GAME_CONFIG.residueCardId)) {
+  if (event?.type === 'curse') {
     save = {
       ...save,
-      playerDeck: [...save.playerDeck, GAME_CONFIG.residueCardId],
+      gold: Math.max(0, save.gold - 8),
       journalEntries: [
         createJournalEntry({
           kind: 'experiment',
-          title: 'Cursed Find',
-          body: 'A foul Residue has crept into your deck. Use Filter to purge it.',
-          relatedIds: [GAME_CONFIG.residueCardId],
+          title: 'Ominous Ground',
+          body: 'Something foul lingered at the site. You lost 8 gold shaking it off.',
+          relatedIds: [],
         }),
         ...save.journalEntries,
       ],

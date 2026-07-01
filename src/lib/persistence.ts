@@ -60,7 +60,9 @@ export function loadGameSave(): GameSaveData {
       journalEntries: parsed.journalEntries ?? defaults.journalEntries,
       ownedIngredientIds: parsed.ownedIngredientIds ?? defaults.ownedIngredientIds,
       ownedTechniqueIds: parsed.ownedTechniqueIds ?? defaults.ownedTechniqueIds,
-      playerDeck: parsed.playerDeck ?? defaults.playerDeck,
+      playerDeck: (parsed.playerDeck ?? defaults.playerDeck).filter(
+        (id) => id !== GAME_CONFIG.residueCardId,
+      ),
       potions: parsed.potions ?? defaults.potions,
       recipeMastery: parsed.recipeMastery ?? defaults.recipeMastery,
       activeOrders: parsed.activeOrders ?? defaults.activeOrders,

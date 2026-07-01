@@ -11,6 +11,7 @@ interface AlchemyCircleProps {
   brewOutcome: 'idle' | 'success' | 'fail'
   pendingBrew: { recipeId: string; potionId: string } | null
   selectedCardId: string | null
+  isBrewing: boolean
   resolveCard: (id: string) => GameCard | undefined
   onRemoveFromSlot: (slotIndex: 0 | 1) => void
   onPlaceInSlot: (slotIndex: 0 | 1) => void
@@ -82,6 +83,7 @@ export function AlchemyCircle({
   brewOutcome,
   pendingBrew,
   selectedCardId,
+  isBrewing,
   resolveCard,
   onRemoveFromSlot,
   onPlaceInSlot,
@@ -97,7 +99,7 @@ export function AlchemyCircle({
   }
 
   const resultPotion = resultPotionId ? POTION_MAP.get(resultPotionId) : null
-  const canBrew = slots[0] !== null && slots[1] !== null
+  const canBrew = slots[0] !== null && slots[1] !== null && !isBrewing
 
   return (
     <section className="relative flex flex-col items-center">
@@ -148,9 +150,15 @@ export function AlchemyCircle({
               onClick={onBrew}
               disabled={!canBrew}
               className="rounded-full border-2 border-amber bg-amber/20 px-8 py-3 font-display text-sm uppercase tracking-[0.25em] text-amber-light shadow-[0_0_20px_rgba(196,122,44,0.3)] transition enabled:hover:bg-amber/35 disabled:cursor-not-allowed disabled:opacity-40"
-              whileTap={{ scale: 0.96 }}
+              whileTap={canBrew ? { scale: 0.96 } : undefined}
+              animate={
+                isBrewing
+                  ? { scale: [1, 1.06, 1], boxShadow: ['0 0 20px rgba(196,122,44,0.3)', '0 0 40px rgba(196,122,44,0.6)', '0 0 20px rgba(196,122,44,0.3)'] }
+                  : {}
+              }
+              transition={{ duration: 0.5, repeat: isBrewing ? Infinity : 0 }}
             >
-              Brew
+              {isBrewing ? 'Brewing…' : 'Brew'}
             </motion.button>
 
             <div
@@ -219,7 +227,7 @@ export function AlchemyCircle({
               onClick={onBottle}
               className="rounded-lg border border-amber/40 px-5 py-2 text-xs uppercase tracking-widest text-amber-light"
             >
-              Bottle ({POTION_MAP.get(pendingBrew.potionId)?.bottleValue ?? 0}g)
+              Bottle ({POTION_MAP.get(pendingBrew.potionId)?.bottleValue ?? 0}g + 1 reagent)
             </button>
           </motion.div>
         )}

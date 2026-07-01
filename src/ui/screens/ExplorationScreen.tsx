@@ -46,7 +46,7 @@ export function ExplorationScreen() {
           )}
           {event?.type === 'curse' && (
             <p className="mt-3 rounded-lg border border-red-900/40 bg-red-900/10 px-4 py-2 text-sm text-red-300/80">
-              A foul presence lingers… something may follow you home.
+              An ominous presence lingers… you may lose a little gold.
             </p>
           )}
         </header>

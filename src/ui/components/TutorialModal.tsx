@@ -9,15 +9,15 @@ const TUTORIAL_STEPS = [
   },
   {
     title: 'Your Deck',
-    body: 'Before brewing, build a deck in the Deckbuilder (max 20 cards). In the laboratory you draw 5 cards. When the deck empties, your discard pile reshuffles.',
+    body: 'Build a deck in the Deckbuilder: up to 20 ingredient cards and 10 support cards (potions + techniques). In the lab you draw 5 cards to start.',
   },
   {
     title: 'Drag Ingredients',
-    body: 'Drag ingredient cards into the two slots — or click a card, then click a slot. Potion cards are different: click Use to activate their effect. Each brew costs 1 reagent.',
+    body: 'Drag ingredient cards into the two slots — or click a card, then click a slot. Potion and technique cards have a Use button. Failed brews are free; successful brews cost 1 reagent.',
   },
   {
     title: 'After You Brew',
-    body: 'Successful brews let you Craft the result as a playable Potion Card, or Bottle it for gold and reagents. Some mixtures Transmute — fusing ingredients into a new material in your deck.',
+    body: 'Successful brews let you Craft the result as a playable card, or Bottle it for gold and a reagent. You also draw a card after each success. Some mixtures Transmute into new materials.',
   },
   {
     title: 'Explore & Shop',
@@ -25,7 +25,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: 'Discover Recipes',
-    body: 'Unknown mixtures fail and return to your hand. Successful brews unlock recipes in your journal. Undiscovered recipes show hints.',
+    body: 'Unknown mixtures fail safely — ingredients return to your hand. Successful brews unlock recipes. Check the journal for hints.',
   },
   {
     title: 'Daily Challenge',

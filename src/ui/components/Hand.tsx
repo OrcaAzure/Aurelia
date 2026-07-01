@@ -1,5 +1,6 @@
 import type { GameCard } from '@/cards/types'
 import { isIngredientDeckId, isPotionDeckId, isTechniqueDeckId } from '@/cards/types'
+import { isResidueCard } from '@/engine/deckUtils'
 import { DraggableCard } from '@/ui/components/DraggableCard'
 import { Card } from '@/ui/components/Card'
 import { detectSlotAtPoint } from '@/lib/dragDrop'
@@ -12,6 +13,7 @@ interface HandProps {
   onCardDrop: (cardId: string, slotIndex: 0 | 1) => void
   onUsePotion: (cardId: string) => void
   onUseTechnique: (cardId: string) => void
+  onDiscard: (cardId: string) => void
 }
 
 export function Hand({
@@ -22,6 +24,7 @@ export function Hand({
   onCardDrop,
   onUsePotion,
   onUseTechnique,
+  onDiscard,
 }: HandProps) {
   return (
     <section className="w-full">
@@ -29,7 +32,7 @@ export function Hand({
         Your Hand
       </h2>
       <p className="mb-4 text-center text-xs text-parchment/45">
-        Drag ingredients to the circle · Use potions and techniques from hand
+        Drag ingredients to the circle · Use potions & techniques · Discard junk cards
       </p>
       <div className="flex min-h-[220px] flex-wrap items-end justify-center gap-4 overflow-visible rounded-2xl border border-amber/15 bg-[linear-gradient(180deg,rgba(30,22,16,0.9),rgba(20,15,10,0.95))] px-6 py-6 shadow-[inset_0_4px_24px_rgba(0,0,0,0.4)]">
         {cards.length === 0 ? (
@@ -37,7 +40,7 @@ export function Hand({
         ) : (
           cards.map((card, index) => {
             const deckId = cardIds[index]
-            if (isIngredientDeckId(deckId)) {
+            if (isIngredientDeckId(deckId) && !isResidueCard(deckId)) {
               return (
                 <DraggableCard
                   key={deckId}
@@ -51,6 +54,21 @@ export function Hand({
                     }
                   }}
                 />
+              )
+            }
+
+            if (isResidueCard(deckId)) {
+              return (
+                <div key={deckId} className="flex flex-col items-center gap-2">
+                  <Card card={card} selected={selectedCardId === deckId} />
+                  <button
+                    type="button"
+                    onClick={() => onDiscard(deckId)}
+                    className="rounded-full border border-red-900/50 bg-red-950/30 px-4 py-1 text-[10px] uppercase tracking-widest text-red-300/80"
+                  >
+                    Discard
+                  </button>
+                </div>
               )
             }
 

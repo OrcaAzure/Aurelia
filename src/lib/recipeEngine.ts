@@ -56,29 +56,28 @@ const INGREDIENT_RECIPE_LOOKUP = new Map<string, RecipeDefinition>(
 
 const PROPERTY_RECIPES = RECIPES.filter((r) => r.matchType === 'properties')
 
-function findNearMiss(slotA: string, slotB: string): string | undefined {
-  const undiscovered = RECIPES.filter((r) => r.matchType === 'ingredients' && r.ingredientIds)
-  for (const recipe of undiscovered) {
-    const [a, b] = recipe.ingredientIds!
-    if (slotA === a || slotA === b || slotB === a || slotB === b) {
-      const ingA = INGREDIENT_MAP.get(slotA)
-      const ingB = INGREDIENT_MAP.get(slotB)
-      if (ingA && ingB) {
-        const sharedElement = ingA.element === ingB.element
-        const otherId = slotA === a || slotA === b ? (slotA === a ? b : a) : undefined
-        if (otherId && (slotA === otherId || slotB === otherId)) {
-          continue
-        }
-        if (sharedElement || slotA === a || slotA === b || slotB === a || slotB === b) {
-          return `Almost… ${recipe.hint}`
-        }
-      }
-    }
+function findNearMiss(
+  slotA: string,
+  slotB: string,
+  discoveredRecipeIds: readonly string[],
+): string | undefined {
+  for (const recipe of RECIPES) {
+    if (recipe.matchType !== 'ingredients' || !recipe.ingredientIds) continue
+    if (discoveredRecipeIds.includes(recipe.id)) continue
+    const [a, b] = recipe.ingredientIds
+    const hasA = slotA === a || slotB === a
+    const hasB = slotA === b || slotB === b
+    if (hasA && !hasB) return `Almost… ${recipe.hint}`
+    if (hasB && !hasA) return `Almost… ${recipe.hint}`
   }
   return undefined
 }
 
-export function matchRecipe(slotA: string, slotB: string): BrewResult {
+export function matchRecipe(
+  slotA: string,
+  slotB: string,
+  discoveredRecipeIds: readonly string[] = [],
+): BrewResult {
   if (slotA === GAME_CONFIG.residueCardId || slotB === GAME_CONFIG.residueCardId) {
     return {
       success: false,
@@ -96,7 +95,7 @@ export function matchRecipe(slotA: string, slotB: string): BrewResult {
   if (!recipe) {
     const nameA = ingredientDisplayName(slotA)
     const nameB = ingredientDisplayName(slotB)
-    const nearMiss = findNearMiss(slotA, slotB)
+    const nearMiss = findNearMiss(slotA, slotB, discoveredRecipeIds)
     return {
       success: false,
       message: nearMiss

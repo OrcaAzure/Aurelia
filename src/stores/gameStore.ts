@@ -12,6 +12,7 @@ import {
   completeTutorial,
   craftPotionCard,
   createInitialState,
+  discardFromHand,
   drawCard,
   getOwnedTechniques,
   getPlayerRank,
@@ -54,6 +55,7 @@ type GameStore = GameRuntimeState & {
   playPotionCard: (deckId: string) => void
   playTechniqueCard: (deckId: string) => void
   clearBrewMessage: () => void
+  discardFromHand: (deckId: string) => void
   startExploration: (locationId: string) => void
   completeExploration: (ingredientId: string) => void
   addCardToDeck: (cardId: string) => void
@@ -85,6 +87,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playPotionCard: (deckId) => set(playPotionCard(get(), deckId)),
   playTechniqueCard: (deckId) => set(playTechniqueCard(get(), deckId)),
   clearBrewMessage: () => set(clearBrewMessage(get())),
+  discardFromHand: (deckId) => set(discardFromHand(get(), deckId)),
   startExploration: (locationId) => set(startExploration(get(), locationId)),
   completeExploration: (ingredientId) =>
     set(completeExploration(get(), ingredientId)),

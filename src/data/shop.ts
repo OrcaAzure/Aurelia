@@ -10,5 +10,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   { id: 'shop-pearl-dust', ingredientId: 'ing-pearl-dust', price: 45, stock: 2 },
   { id: 'shop-crystal-dust', ingredientId: 'ing-crystal-dust', price: 25, stock: 3 },
   { id: 'shop-phoenix-ash', ingredientId: 'ing-phoenix-ash', price: 80, stock: 1 },
+  { id: 'shop-moon-silver', ingredientId: 'ing-moon-silver', price: 55, stock: 2 },
+  { id: 'shop-ether-mist', ingredientId: 'ing-ether-mist', price: 60, stock: 2 },
   { id: 'shop-reagents', ingredientId: 'reagent-pack', price: 15, stock: 99 },
 ] as const

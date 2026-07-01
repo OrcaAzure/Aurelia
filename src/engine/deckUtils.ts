@@ -90,6 +90,10 @@ export function canAddToDeck(
   deck: readonly string[],
   cardId: string,
 ): boolean {
+  if (isResidueCard(cardId)) {
+    return false
+  }
+
   if (countInDeck(deck, cardId) >= GAME_CONFIG.maxCopiesPerCard) {
     return false
   }
