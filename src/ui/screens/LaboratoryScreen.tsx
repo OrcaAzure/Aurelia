@@ -23,6 +23,7 @@ import { isResidueCard } from '@/engine/deckUtils'
 import { resolveCanvasDeckId, getCanvasCardIds, getRackPotionEntries } from '@/ui/components/LabSupportTray'
 import { LabSupportSidebar } from '@/ui/components/LabSupportSidebar'
 import { LaboratoryTopBar } from '@/ui/components/LaboratoryTopBar'
+import { LabTutorialOverlay } from '@/ui/components/LabTutorialOverlay'
 
 const MERGE_MS = 400
 const SWIRL_MS = 650
@@ -68,6 +69,16 @@ export function LaboratoryScreen() {
   const playTechniqueCard = useGameStore((state) => state.playTechniqueCard)
   const discardFromHand = useGameStore((state) => state.discardFromHand)
   const clearBrewMessage = useGameStore((state) => state.clearBrewMessage)
+  const completeLabTutorial = useGameStore((state) => state.completeLabTutorial)
+
+  const [labTutorialOpen, setLabTutorialOpen] = useState(
+    () => !useGameStore.getState().save.labTutorialCompleted,
+  )
+
+  const handleCloseLabTutorial = useCallback(() => {
+    completeLabTutorial()
+    setLabTutorialOpen(false)
+  }, [completeLabTutorial])
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const zCounter = useRef(1)
@@ -84,6 +95,7 @@ export function LaboratoryScreen() {
   const fusedInstances = useRef<[string, string] | null>(null)
   const fusedCatalyst = useRef<string | null>(null)
   const fusionLayoutRef = useRef<Record<string, CardTransform>>({})
+  const fusionLockRef = useRef(false)
 
   const prevDiscoveredCount = useRef(save.discoveredRecipeIds.length)
   const pendingOutcome = useRef<'success' | 'fail'>('success')
@@ -202,7 +214,7 @@ export function LaboratoryScreen() {
       const next = { ...prev }
       let changed = false
       for (const id of Object.keys(next)) {
-        if (!ids.includes(id)) {
+        if (!ids.includes(id) && !fusionIds.has(id)) {
           delete next[id]
           changed = true
         }
@@ -287,6 +299,7 @@ export function LaboratoryScreen() {
         setMergingPair(null)
         setMergeTransforms({})
         fusionLayoutRef.current = {}
+        fusionLockRef.current = false
         syncCardLayout()
       }, FLASH_MS)
     }, SWIRL_MS)
@@ -299,7 +312,9 @@ export function LaboratoryScreen() {
       catalystInstance?: string,
       dragPositions?: Record<string, CardTransform>,
     ) => {
-      if (isBrewing || isMerging || !lab) return
+      if (isBrewing || isMerging || fusionLockRef.current || !lab) return
+
+      if (lab.pendingBrew) return
 
       const deckA = resolveCanvasDeckId(lab, instanceA)
       const deckB = resolveCanvasDeckId(lab, instanceB)
@@ -327,6 +342,9 @@ export function LaboratoryScreen() {
       }
       if (!transforms[instanceA] || !transforms[instanceB]) return
 
+      fusionLockRef.current = true
+      setIsMerging(true)
+
       if (dragPositions) {
         setCardTransforms((prev) => ({ ...prev, ...dragPositions }))
       }
@@ -350,6 +368,7 @@ export function LaboratoryScreen() {
         || fused.tableSlots[0] !== deckA
         || fused.tableSlots[1] !== deckB
       ) {
+        fusionLockRef.current = false
         setIsMerging(false)
         setMergingPair(null)
         setMergeTransforms({})
@@ -365,7 +384,6 @@ export function LaboratoryScreen() {
 
       setMergingPair([instanceA, instanceB])
       setMergeTransforms(transforms)
-      setIsMerging(true)
       fusedInstances.current = [instanceA, instanceB]
       audioService.play('click')
 
@@ -561,6 +579,11 @@ export function LaboratoryScreen() {
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-ink">
+      <LabTutorialOverlay
+        open={labTutorialOpen}
+        onComplete={handleCloseLabTutorial}
+      />
+
       <LaboratoryTopBar
         playerName={save.playerName}
         rank={rank}
@@ -569,6 +592,7 @@ export function LaboratoryScreen() {
         brewCost={GAME_CONFIG.brewReagentCost}
         onOpenJournal={() => openJournal('laboratory')}
         onOpenSettings={() => setPhase('settings')}
+        onOpenGuide={() => setLabTutorialOpen(true)}
         onBack={() => setPhase('menu')}
       />
 
@@ -585,7 +609,7 @@ export function LaboratoryScreen() {
           }}
         />
 
-        <main className="relative min-w-0 flex-1">
+        <main className="relative min-w-0 flex-1" data-lab-tutorial="desk">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(196,122,44,0.09),transparent_62%)]" />
 
           <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-parchment/28">
@@ -638,8 +662,10 @@ export function LaboratoryScreen() {
           entries={handEntries}
           rackPotions={rackPotions}
           resolveCard={resolveCard}
+          techniquesDisabled={isBrewing || isMerging}
           onPlacePotionOnDesk={handlePlacePotionFromRack}
           onUseTechnique={(instanceId) => {
+            if (isBrewing || isMerging) return
             audioService.play('click')
             playTechniqueCard(instanceId)
           }}

@@ -10,6 +10,7 @@ import {
   clearBrewMessage,
   completeExploration,
   completeTutorial,
+  completeLabTutorial,
   craftPotionCard,
   createInitialState,
   discardFromHand,
@@ -55,6 +56,7 @@ type GameStore = GameRuntimeState & {
   openJournal: (returnPhase: GamePhase) => void
   setPlayerName: (name: string) => void
   completeTutorial: () => void
+  completeLabTutorial: () => void
   startLaboratory: () => void
   selectCard: (cardId: string | null) => void
   placeCardInSlot: (cardId: string, slotIndex: 0 | 1) => void
@@ -101,6 +103,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   openJournal: (returnPhase) => set(openJournal(get(), returnPhase)),
   setPlayerName: (name) => set(setPlayerName(get(), name)),
   completeTutorial: () => set(completeTutorial(get())),
+  completeLabTutorial: () => set(completeLabTutorial(get())),
   startLaboratory: () => set(startLaboratory(get())),
   selectCard: (cardId) => set(selectCard(get(), cardId)),
   placeCardInSlot: (cardId, slotIndex) =>

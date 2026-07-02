@@ -8,6 +8,7 @@ interface LaboratoryTopBarProps {
   brewCost: number
   onOpenJournal: () => void
   onOpenSettings: () => void
+  onOpenGuide?: () => void
   onBack: () => void
 }
 
@@ -19,10 +20,14 @@ export function LaboratoryTopBar({
   brewCost,
   onOpenJournal,
   onOpenSettings,
+  onOpenGuide,
   onBack,
 }: LaboratoryTopBarProps) {
   return (
-    <header className="relative z-50 flex flex-wrap items-center justify-between gap-4 border-b border-amber/15 bg-ink/50 px-6 py-3 backdrop-blur-md">
+    <header
+      data-lab-tutorial="topbar"
+      className="relative z-50 flex flex-wrap items-center justify-between gap-4 border-b border-amber/15 bg-ink/50 px-6 py-3 backdrop-blur-md"
+    >
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -47,9 +52,22 @@ export function LaboratoryTopBar({
       </div>
 
       <nav className="flex gap-3">
+        {onOpenGuide && (
+          <motion.button
+            type="button"
+            onClick={onOpenGuide}
+            className="rounded-lg border border-vial/35 bg-vial/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-vial"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            title="Laboratory guide"
+          >
+            ?
+          </motion.button>
+        )}
         <motion.button
           type="button"
           onClick={onOpenJournal}
+          data-lab-tutorial="journal"
           className="rounded-lg border border-amber/30 bg-amber/10 px-5 py-2 font-display text-xs uppercase tracking-widest text-amber-light"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}

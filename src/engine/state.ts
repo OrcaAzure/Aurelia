@@ -11,6 +11,7 @@ export interface PotionStack {
 export interface GameSaveData {
   playerName: string
   tutorialCompleted: boolean
+  labTutorialCompleted: boolean
   discoveredRecipeIds: string[]
   discoveredIngredientIds: string[]
   journalEntries: JournalEntry[]

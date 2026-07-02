@@ -24,7 +24,10 @@ export function LabDeckPanel({
       : 'Draw a card'
 
   return (
-    <aside className="flex w-[8.25rem] shrink-0 flex-col items-center overflow-hidden border-r border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.95),rgba(14,10,8,0.98))] py-4">
+    <aside
+      data-lab-tutorial="deck"
+      className="flex w-[8.25rem] shrink-0 flex-col items-center overflow-hidden border-r border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.95),rgba(14,10,8,0.98))] py-4"
+    >
       <p className="mb-4 font-display text-[9px] uppercase tracking-[0.35em] text-amber/50">
         Deck
       </p>

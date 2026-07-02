@@ -5,31 +5,23 @@ import { loadGameSave } from '@/lib/persistence'
 const TUTORIAL_STEPS = [
   {
     title: 'Welcome to Aurelia',
-    body: 'You are an alchemist experimenting with ingredient cards. Combine them in the Alchemy Circle to discover potion recipes and record them in your journal.',
+    body: 'You are an alchemist building a deck of ingredients and support cards. Enter the Laboratory to brew potions, explore for new materials, and fill your journal with discoveries.',
   },
   {
     title: 'Your Deck',
-    body: 'Build a deck in the Deckbuilder: up to 20 ingredient cards and 10 support cards (potions + techniques). In the lab you draw 5 cards to start.',
-  },
-  {
-    title: 'Drag Ingredients',
-    body: 'Drag ingredient cards into the two slots — or click a card, then click a slot. Potion and technique cards have a Use button. Failed brews are free; successful brews cost 1 reagent.',
-  },
-  {
-    title: 'After You Brew',
-    body: 'Successful brews let you Craft the result as a playable card, or Bottle it for gold and a reagent. You also draw a card after each success. Some mixtures Transmute into new materials.',
+    body: 'Build a deck in the Deckbuilder: up to 20 ingredient cards and 10 support cards (potions + techniques). The lab draws from this deck each visit.',
   },
   {
     title: 'Explore & Shop',
-    body: 'Visit Exploration to find new ingredients (3 runs per day). The Shop sells rare reagents and ingredients for gold.',
+    body: 'Visit Exploration to find new ingredients (3 runs per day). The Shop sells rare reagents and ingredients for gold. Use Prepare to upgrade materials.',
   },
   {
-    title: 'Discover Recipes',
-    body: 'Unknown mixtures fail safely — ingredients return to your hand. Successful brews unlock recipes. Check the journal for hints.',
+    title: 'Orders & Challenges',
+    body: 'Complete daily Alchemist\'s Orders and the Daily Challenge for bonus gold and XP. Check the main menu for progress.',
   },
   {
-    title: 'Daily Challenge',
-    body: 'Each day brings a new challenge. Discover a recipe using a specific element to earn bonus gold and XP.',
+    title: 'Enter the Laboratory',
+    body: 'The full lab tutorial walks you through dragging ingredients, brewing, crafting, catalyst combos, and more — it starts automatically the first time you enter.',
   },
 ] as const
 

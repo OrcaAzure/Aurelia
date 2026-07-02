@@ -21,6 +21,7 @@ export function createDefaultSave(): GameSaveData {
   return {
     playerName: 'Alchemist',
     tutorialCompleted: false,
+    labTutorialCompleted: false,
     discoveredRecipeIds: [],
     discoveredIngredientIds: [...STARTER_DISCOVERED_INGREDIENT_IDS],
     journalEntries: [],

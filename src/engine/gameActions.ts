@@ -242,6 +242,7 @@ function handleFailedBrew(
     [slotB, instanceB],
   ]
   const returned: { deckId: string; instanceId: string }[] = []
+  const orphanedDeckIds: string[] = []
 
   for (const [cardId, instanceId] of pairs) {
     const consumed =
@@ -252,6 +253,8 @@ function handleFailedBrew(
       message += ` ${ingredientDisplayName(cardId)} was consumed by the volatile reaction.`
     } else if (instanceId) {
       returned.push({ deckId: cardId, instanceId })
+    } else {
+      orphanedDeckIds.push(cardId)
     }
   }
 
@@ -268,10 +271,15 @@ function handleFailedBrew(
     message += ' A bit of Residue settles in your discard pile — use Filter to clear it.'
   }
 
+  let handState = restoreFusedInstancesToHand(lab, returned)
+  if (orphanedDeckIds.length > 0) {
+    handState = pushCardsToHand({ ...lab, ...handState }, ...orphanedDeckIds)
+  }
+
   return {
     lab: {
       ...lab,
-      ...restoreFusedInstancesToHand(lab, returned),
+      ...handState,
       discardPile,
       ...clearFusionSlots(),
     },
@@ -311,6 +319,11 @@ export function setPlayerName(
 
 export function completeTutorial(state: GameRuntimeState): GameRuntimeState {
   const save = { ...state.save, tutorialCompleted: true }
+  return syncSave(state, save)
+}
+
+export function completeLabTutorial(state: GameRuntimeState): GameRuntimeState {
+  const save = { ...state.save, labTutorialCompleted: true }
   return syncSave(state, save)
 }
 
@@ -413,11 +426,12 @@ export function placeCardInSlot(
     return state
   }
 
-  const lab = state.lab
+  const lab = ensureLabInstances(state.lab)
+  const handIndex = lab.hand.indexOf(cardId)
   if (
-    !isIngredientDeckId(cardId)
+    handIndex === -1
+    || !isIngredientDeckId(cardId)
     || isResidueCard(cardId)
-    || !lab.hand.includes(cardId)
     || lab.tableSlots[slotIndex] !== null
   ) {
     return state
@@ -428,16 +442,23 @@ export function placeCardInSlot(
     return state
   }
 
+  const instanceId = lab.handInstanceIds[handIndex]
   const nextSlots = [...lab.tableSlots] as [string | null, string | null]
+  const nextSlotInstances = [...(lab.tableSlotInstances ?? [null, null])] as [
+    string | null,
+    string | null,
+  ]
   nextSlots[slotIndex] = cardId
+  nextSlotInstances[slotIndex] = instanceId
 
   return {
     ...state,
     selectedCardId: null,
     lab: {
       ...lab,
+      ...removeInstancesFromHand(lab, instanceId),
       tableSlots: nextSlots,
-      hand: lab.hand.filter((id) => id !== cardId),
+      tableSlotInstances: nextSlotInstances,
       resultPotionId: null,
       brewMessage: null,
       brewOutcome: 'idle',
@@ -453,20 +474,32 @@ export function removeCardFromSlot(
     return state
   }
 
-  const cardId = state.lab.tableSlots[slotIndex]
+  const lab = ensureLabInstances(state.lab)
+  const cardId = lab.tableSlots[slotIndex]
   if (!cardId) {
     return state
   }
 
-  const nextSlots = [...state.lab.tableSlots] as [string | null, string | null]
+  const instanceId = (lab.tableSlotInstances ?? [null, null])[slotIndex]
+  const nextSlots = [...lab.tableSlots] as [string | null, string | null]
+  const nextSlotInstances = [...(lab.tableSlotInstances ?? [null, null])] as [
+    string | null,
+    string | null,
+  ]
   nextSlots[slotIndex] = null
+  nextSlotInstances[slotIndex] = null
+
+  const restoredHand = instanceId
+    ? restoreFusedInstancesToHand(lab, [{ deckId: cardId, instanceId }])
+    : pushCardsToHand(lab, cardId)
 
   return {
     ...state,
     lab: {
-      ...state.lab,
+      ...lab,
+      ...restoredHand,
       tableSlots: nextSlots,
-      hand: [...state.lab.hand, cardId],
+      tableSlotInstances: nextSlotInstances,
       resultPotionId: null,
     },
   }
@@ -534,14 +567,20 @@ export function placeCardOnDesk(
     return state
   }
 
-  const lab = state.lab
-  const deskCards = lab.deskCards ?? []
+  const lab = ensureLabInstances(state.lab)
+  const handIndex = lab.hand.indexOf(cardId)
   if (
-    !isIngredientDeckId(cardId)
+    handIndex === -1
+    || !isIngredientDeckId(cardId)
     || isResidueCard(cardId)
-    || !lab.hand.includes(cardId)
-    || deskCards.includes(cardId)
+    || lab.deskCards.includes(cardId)
   ) {
+    return state
+  }
+
+  const instanceId = lab.handInstanceIds[handIndex]
+  const nextLab = moveHandInstanceToDesk(lab, instanceId)
+  if (!nextLab) {
     return state
   }
 
@@ -549,9 +588,7 @@ export function placeCardOnDesk(
     ...state,
     selectedCardId: null,
     lab: {
-      ...lab,
-      hand: lab.hand.filter((id) => id !== cardId),
-      deskCards: [...deskCards, cardId],
+      ...nextLab,
       resultPotionId: null,
       brewMessage: null,
       brewOutcome: 'idle',
@@ -567,9 +604,9 @@ export function returnDeskCardToHand(
     return state
   }
 
-  const lab = state.lab
-  const deskCards = lab.deskCards ?? []
-  if (!deskCards.includes(cardId)) {
+  const lab = ensureLabInstances(state.lab)
+  const deskIndex = lab.deskCards.indexOf(cardId)
+  if (deskIndex === -1) {
     return state
   }
 
@@ -584,12 +621,16 @@ export function returnDeskCardToHand(
     }
   }
 
+  const instanceId = lab.deskInstanceIds[deskIndex]
+  const nextLab = moveDeskInstanceToHand(lab, instanceId)
+  if (!nextLab) {
+    return state
+  }
+
   return {
     ...state,
     lab: {
-      ...lab,
-      deskCards: deskCards.filter((id) => id !== cardId),
-      hand: [...lab.hand, cardId],
+      ...nextLab,
       brewMessage: null,
       brewOutcome: 'idle',
     },
@@ -605,23 +646,42 @@ export function fuseDeskCards(
     return state
   }
 
-  const lab = state.lab
-  const deskCards = lab.deskCards ?? []
+  const lab = ensureLabInstances(state.lab)
+  const deskIndexA = lab.deskCards.indexOf(cardA)
+  const deskIndexB = lab.deskCards.indexOf(cardB)
   if (
     cardA === cardB
-    || !deskCards.includes(cardA)
-    || !deskCards.includes(cardB)
+    || deskIndexA === -1
+    || deskIndexB === -1
   ) {
     return state
   }
+
+  if (lab.pendingBrew) {
+    return {
+      ...state,
+      lab: {
+        ...lab,
+        brewMessage: 'Craft or bottle your potion before fusing again.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
+
+  const instanceA = lab.deskInstanceIds[deskIndexA]
+  const instanceB = lab.deskInstanceIds[deskIndexB]
 
   return {
     ...state,
     selectedCardId: null,
     lab: {
       ...lab,
-      deskCards: deskCards.filter((id) => id !== cardA && id !== cardB),
+      deskCards: lab.deskCards.filter((id) => id !== cardA && id !== cardB),
+      deskInstanceIds: lab.deskInstanceIds.filter(
+        (id) => id !== instanceA && id !== instanceB,
+      ),
       tableSlots: [cardA, cardB],
+      tableSlotInstances: [instanceA, instanceB],
       resultPotionId: null,
       brewMessage: null,
       brewOutcome: 'idle',
@@ -641,6 +701,16 @@ export function fuseHandCards(
   const lab = ensureLabInstances(state.lab)
   const deckA = deckIdForInstance(lab, instanceA)
   const deckB = deckIdForInstance(lab, instanceB)
+  if (lab.pendingBrew) {
+    return {
+      ...state,
+      lab: {
+        ...lab,
+        brewMessage: 'Craft or bottle your potion before fusing again.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
   if (
     instanceA === instanceB
     || !lab.handInstanceIds.includes(instanceA)
@@ -722,6 +792,17 @@ export function fuseHandCardsWithCatalyst(
     return state
   }
 
+  if (lab.pendingBrew) {
+    return {
+      ...state,
+      lab: {
+        ...lab,
+        brewMessage: 'Craft or bottle your potion before fusing again.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
+
   let nextLab: LabSession = {
     ...lab,
     ...removeInstancesFromHand(lab, instanceA, instanceB),
@@ -765,7 +846,7 @@ export function mergeDeskIntoHand(state: GameRuntimeState): GameRuntimeState {
 
   for (let index = 0; index < lab.deskCards.length; index += 1) {
     hand.push(lab.deskCards[index])
-    handInstanceIds.push(lab.deskInstanceIds[index])
+    handInstanceIds.push(lab.deskInstanceIds[index] ?? nextCardInstanceId())
   }
 
   const labWithDeskMerged = { ...lab, hand, handInstanceIds }
@@ -890,8 +971,8 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
     cardLayouts: pruneCardLayouts(lab.cardLayouts ?? {}, consumedInstances),
     brewMessage: result.message,
     brewOutcome: result.success ? 'success' : 'fail',
-    resultPotionId: null,
-    pendingBrew: null,
+    resultPotionId: lab.resultPotionId,
+    pendingBrew: lab.pendingBrew,
     heatBoostActive: false,
   }
 
@@ -993,11 +1074,13 @@ export function brew(state: GameRuntimeState): GameRuntimeState {
           ...labNext,
           ...pushed,
           resultPotionId: null,
+          pendingBrew: null,
         }
       } else {
         labNext = {
           ...labNext,
           resultPotionId: null,
+          pendingBrew: null,
           brewMessage: `${labNext.brewMessage} Desk full — transmuted material added to your deck.`,
         }
       }
@@ -1205,6 +1288,17 @@ export function playTechniqueCard(
   }
 
   const labBase = ensureLabInstances(state.lab)
+  if (getActiveFusionInstanceIds(labBase).length > 0) {
+    return {
+      ...state,
+      lab: {
+        ...labBase,
+        brewMessage: 'Finish the current brew before using a technique.',
+        brewOutcome: 'fail',
+      },
+    }
+  }
+
   const byInstance = labBase.handInstanceIds.includes(deckIdOrInstanceId)
   const deckId = byInstance
     ? deckIdForInstance(labBase, deckIdOrInstanceId)
@@ -1292,7 +1386,12 @@ export function playTechniqueCard(
           discardPile: lab.discardPile.filter((id) => id !== deckId),
         }
       } else {
-        lab = { ...lab, tableSlots: [b, a] }
+        const [instA, instB] = lab.tableSlotInstances ?? [null, null]
+        lab = {
+          ...lab,
+          tableSlots: [b, a],
+          tableSlotInstances: [instB, instA],
+        }
         brewMessage = 'Stir: swapped the ingredients in the circle.'
       }
       break

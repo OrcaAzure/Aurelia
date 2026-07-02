@@ -14,11 +14,27 @@ export function ensureLabInstances(lab: LabSession): LabSession {
   let handInstanceIds = lab.handInstanceIds ?? []
 
   if (handInstanceIds.length !== lab.hand.length) {
-    handInstanceIds = lab.hand.map((_, index) => handInstanceIds[index] ?? nextCardInstanceId())
+    if (handInstanceIds.length > lab.hand.length) {
+      handInstanceIds = handInstanceIds.slice(0, lab.hand.length)
+    } else {
+      const missing = lab.hand.length - handInstanceIds.length
+      handInstanceIds = [
+        ...handInstanceIds,
+        ...Array.from({ length: missing }, () => nextCardInstanceId()),
+      ]
+    }
   }
 
   if (deskInstanceIds.length !== deskCards.length) {
-    deskInstanceIds = deskCards.map((_, index) => deskInstanceIds[index] ?? nextCardInstanceId())
+    if (deskInstanceIds.length > deskCards.length) {
+      deskInstanceIds = deskInstanceIds.slice(0, deskCards.length)
+    } else {
+      const missing = deskCards.length - deskInstanceIds.length
+      deskInstanceIds = [
+        ...deskInstanceIds,
+        ...Array.from({ length: missing }, () => nextCardInstanceId()),
+      ]
+    }
   }
 
   return {

@@ -1,4 +1,5 @@
 import { useGameStore } from '@/stores/gameStore'
+import { AppBackground } from '@/ui/components/AppBackground'
 import { PageTransition } from '@/ui/components/PageTransition'
 import { DeckbuildingScreen } from '@/ui/screens/DeckbuildingScreen'
 import { ExplorationScreen } from '@/ui/screens/ExplorationScreen'
@@ -37,13 +38,7 @@ export function AppShell() {
 
   return (
     <div className="relative min-h-screen bg-ink">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-30"
-        style={{
-          background:
-            'radial-gradient(ellipse at 20% 0%, #c47a2c33 0%, transparent 50%), radial-gradient(ellipse at 80% 100%, #3d5a3e33 0%, transparent 50%)',
-        }}
-      />
+      <AppBackground />
       <div className="relative z-10">
         <PageTransition phaseKey={phase}>{screen}</PageTransition>
       </div>

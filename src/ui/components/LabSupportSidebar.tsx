@@ -9,6 +9,7 @@ interface LabSupportSidebarProps {
   entries: { deckId: string; instanceId: string; card: GameCard }[]
   rackPotions: RackPotionEntry[]
   resolveCard: (id: string) => GameCard | undefined
+  techniquesDisabled?: boolean
   onPlacePotionOnDesk: (instanceId: string, point: { x: number; y: number }) => void
   onUseTechnique: (instanceId: string) => void
   onDiscard: (instanceId: string) => void
@@ -20,12 +21,14 @@ function SidebarCardSlot({
   onDiscard,
   useLabel,
   useClass,
+  disabled = false,
 }: {
   card: GameCard
   onUse?: () => void
   onDiscard?: () => void
   useLabel: string
   useClass: string
+  disabled?: boolean
 }) {
   const [flipped, setFlipped] = useState(false)
 
@@ -54,7 +57,8 @@ function SidebarCardSlot({
         <button
           type="button"
           onClick={onUse}
-          className={`w-[7.25rem] rounded-md border px-2 py-1.5 text-[9px] uppercase tracking-widest transition hover:brightness-110 ${useClass}`}
+          disabled={disabled}
+          className={`w-[7.25rem] rounded-md border px-2 py-1.5 text-[9px] uppercase tracking-widest transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${useClass}`}
         >
           {useLabel}
         </button>
@@ -67,6 +71,7 @@ export function LabSupportSidebar({
   entries,
   rackPotions,
   resolveCard,
+  techniquesDisabled = false,
   onPlacePotionOnDesk,
   onUseTechnique,
   onDiscard,
@@ -77,6 +82,7 @@ export function LabSupportSidebar({
 
   return (
     <aside
+      data-lab-tutorial="rack"
       data-lab-rack
       className="flex w-[8.75rem] shrink-0 flex-col overflow-hidden border-l border-amber/15 bg-[linear-gradient(180deg,rgba(22,16,12,0.98),rgba(14,10,8,1))]"
     >
@@ -131,6 +137,7 @@ export function LabSupportSidebar({
                   card={card}
                   useLabel="Use"
                   useClass="border-amber/40 bg-amber/10 text-amber-light"
+                  disabled={techniquesDisabled}
                   onUse={() => onUseTechnique(instanceId)}
                 />
               ))}

@@ -23,6 +23,7 @@ function countIngredientCopies(ids: readonly string[]): Map<string, number> {
 export function getLabIngredientAvailability(lab: LabSession): IngredientAvailability[] {
   const heldIds = [
     ...lab.hand,
+    ...lab.deskCards,
     ...lab.tableSlots.filter((id): id is string => id !== null),
   ]
   const fusionDeckIds = new Set(
