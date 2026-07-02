@@ -28,6 +28,27 @@ const MERGE_MS = 400
 const SWIRL_MS = 650
 const FLASH_MS = 500
 
+function layoutsEqual(
+  a: Record<string, CardTransform>,
+  b: Record<string, CardTransform>,
+): boolean {
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  for (const key of aKeys) {
+    const left = a[key]
+    const right = b[key]
+    if (
+      !right
+      || left.x !== right.x
+      || left.y !== right.y
+      || left.rotate !== right.rotate
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 export function LaboratoryScreen() {
   const save = useGameStore((state) => state.save)
   const lab = useGameStore((state) => state.lab)
@@ -78,14 +99,19 @@ export function LaboratoryScreen() {
         | Record<string, CardTransform>
         | ((prev: Record<string, CardTransform>) => Record<string, CardTransform>),
     ) => {
-      setCardTransformsState((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater
-        updateLabCardLayouts(next)
-        return next
-      })
+      setCardTransformsState((prev) =>
+        typeof updater === 'function' ? updater(prev) : updater,
+      )
     },
-    [updateLabCardLayouts],
+    [],
   )
+
+  useEffect(() => {
+    if (!lab) return
+    const stored = lab.cardLayouts ?? {}
+    if (layoutsEqual(cardTransforms, stored)) return
+    updateLabCardLayouts(cardTransforms)
+  }, [cardTransforms, lab, updateLabCardLayouts])
 
   useLayoutEffect(() => {
     initializeLabCanvas()
@@ -132,15 +158,16 @@ export function LaboratoryScreen() {
   }, [])
 
   const syncCardLayout = useCallback(() => {
-    if (!lab) return
+    const currentLab = useGameStore.getState().lab
+    if (!currentLab) return
     const canvas = canvasRef.current
     const canvasW = canvas?.clientWidth ?? 600
     const canvasH = canvas?.clientHeight ?? 500
-    const ids = getCanvasCardIds(lab)
+    const ids = getCanvasCardIds(currentLab)
     const fusionIds = new Set(
       [
-        ...(lab.tableSlotInstances ?? []),
-        lab.catalystInstance,
+        ...(currentLab.tableSlotInstances ?? []),
+        currentLab.catalystInstance,
       ].filter((id): id is string => id !== null),
     )
     const zUpdates: Record<string, number> = {}
@@ -182,7 +209,7 @@ export function LaboratoryScreen() {
       }
       return changed ? next : prev
     })
-  }, [lab])
+  }, [setCardTransforms])
 
   useEffect(() => {
     syncCardLayout()
