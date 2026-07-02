@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from 'react'
 import { motion } from 'framer-motion'
 import type { GameCard, IngredientCard, IngredientProperty } from '@/cards/types'
 import { EvervaultCardEffect, evervaultGradientForCard } from '@/ui/components/EvervaultCardEffect'
+import { CardElementAnimation } from '@/ui/components/CardElementAnimation'
 import { CardVortex, vortexHueForCard } from '@/ui/components/CardVortex'
 
 const rarityStyles: Record<
@@ -116,6 +117,7 @@ function CardArt({
           active={active}
         />
       )}
+      <CardElementAnimation card={card} compact={compact} rack={rack} />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(196,122,44,0.2),transparent_60%)]" />
       {card.category === 'potion' && (
         <div className="absolute bottom-2 left-1/2 z-10 h-10 w-6 -translate-x-1/2 rounded-b-full border-2 border-vial/50 bg-vial/20" />
