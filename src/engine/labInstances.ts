@@ -37,11 +37,26 @@ export function ensureLabInstances(lab: LabSession): LabSession {
     }
   }
 
+  const tableSlots = lab.tableSlots ?? [null, null]
+  const tableSlotInstances = [...(lab.tableSlotInstances ?? [null, null])] as [
+    string | null,
+    string | null,
+  ]
+  for (let index = 0; index < 2; index += 1) {
+    if (tableSlots[index] && !tableSlotInstances[index]) {
+      tableSlotInstances[index] = nextCardInstanceId()
+    }
+    if (!tableSlots[index]) {
+      tableSlotInstances[index] = null
+    }
+  }
+
   return {
     ...lab,
     deskCards,
     deskInstanceIds,
     handInstanceIds,
+    tableSlotInstances,
     catalystSlot: lab.catalystSlot ?? null,
     catalystInstance: lab.catalystInstance ?? null,
     cardLayouts: lab.cardLayouts ?? {},

@@ -21,6 +21,7 @@ import { LabDesk } from '@/ui/components/LabDesk'
 import { isIngredientDeckId, isPotionDeckId } from '@/cards/types'
 import { isResidueCard } from '@/engine/deckUtils'
 import { resolveCanvasDeckId, getCanvasCardIds, getRackPotionEntries } from '@/ui/components/LabSupportTray'
+import { getActiveFusionInstanceIds } from '@/engine/labInstances'
 import { LabSupportSidebar } from '@/ui/components/LabSupportSidebar'
 import { LaboratoryTopBar } from '@/ui/components/LaboratoryTopBar'
 import { LabTutorialOverlay } from '@/ui/components/LabTutorialOverlay'
@@ -70,6 +71,7 @@ export function LaboratoryScreen() {
   const discardFromHand = useGameStore((state) => state.discardFromHand)
   const clearBrewMessage = useGameStore((state) => state.clearBrewMessage)
   const completeLabTutorial = useGameStore((state) => state.completeLabTutorial)
+  const cancelLabFusion = useGameStore((state) => state.cancelLabFusion)
 
   const [labTutorialOpen, setLabTutorialOpen] = useState(
     () => !useGameStore.getState().save.labTutorialCompleted,
@@ -119,9 +121,12 @@ export function LaboratoryScreen() {
   )
 
   useEffect(() => {
-    if (!lab) return
+    if (!lab || !layoutsHydrated.current) return
     const stored = lab.cardLayouts ?? {}
     if (layoutsEqual(cardTransforms, stored)) return
+    if (Object.keys(cardTransforms).length === 0 && Object.keys(stored).length > 0) {
+      return
+    }
     updateLabCardLayouts(cardTransforms)
   }, [cardTransforms, lab, updateLabCardLayouts])
 
@@ -138,9 +143,16 @@ export function LaboratoryScreen() {
 
   useEffect(() => {
     return () => {
-      if (brewTimer.current) clearTimeout(brewTimer.current)
+      if (brewTimer.current) {
+        clearTimeout(brewTimer.current)
+        brewTimer.current = null
+        const currentLab = useGameStore.getState().lab
+        if (currentLab && getActiveFusionInstanceIds(currentLab).length > 0) {
+          cancelLabFusion()
+        }
+      }
     }
-  }, [])
+  }, [cancelLabFusion])
 
   useEffect(() => {
     if (save.discoveredRecipeIds.length > prevDiscoveredCount.current) {
@@ -151,6 +163,11 @@ export function LaboratoryScreen() {
 
   const canvasCardIds = lab ? getCanvasCardIds(lab) : []
   const rackPotions = lab ? getRackPotionEntries(lab) : []
+  const canvasCardKey = canvasCardIds.join('|')
+  const handInstanceKey = lab?.handInstanceIds?.join('|') ?? ''
+  const fusionSlotKey = lab?.tableSlotInstances?.join('|') ?? ''
+  const deskInstanceKey = lab?.deskInstanceIds?.join('|') ?? ''
+  const catalystInstance = lab?.catalystInstance ?? null
 
   const restoreFusionLayout = useCallback((instanceIds: readonly string[]) => {
     const saved = fusionLayoutRef.current
@@ -227,11 +244,11 @@ export function LaboratoryScreen() {
     syncCardLayout()
   }, [
     syncCardLayout,
-    canvasCardIds.join('|'),
-    lab?.handInstanceIds?.join('|'),
-    lab?.tableSlotInstances?.join('|'),
-    lab?.catalystInstance,
-    lab?.deskInstanceIds?.join('|'),
+    canvasCardKey,
+    handInstanceKey,
+    fusionSlotKey,
+    catalystInstance,
+    deskInstanceKey,
   ])
 
   useEffect(() => {
@@ -315,6 +332,8 @@ export function LaboratoryScreen() {
       if (isBrewing || isMerging || fusionLockRef.current || !lab) return
 
       if (lab.pendingBrew) return
+
+      if (getActiveFusionInstanceIds(lab).length > 0) return
 
       const deckA = resolveCanvasDeckId(lab, instanceA)
       const deckB = resolveCanvasDeckId(lab, instanceB)

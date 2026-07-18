@@ -47,7 +47,7 @@ export function CardVortex({
 
     let tick = 0
     let particleProps = new Float32Array(particlePropsLength)
-    let center: [number, number] = [0, 0]
+    const center: [number, number] = [0, 0]
     const TAU = 2 * Math.PI
     const rand = (n: number) => n * Math.random()
     const randRange = (n: number) => n - rand(2 * n)

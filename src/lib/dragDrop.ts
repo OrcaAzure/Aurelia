@@ -94,11 +94,13 @@ export function findOverlappingDeskCard(
 
 /** @deprecated */
 export function detectHandZoneAtPoint(_point: { x: number; y: number }): boolean {
+  void _point
   return false
 }
 
 /** @deprecated */
 export function shouldPlaceOnCanvas(_point: { x: number; y: number }): boolean {
+  void _point
   return true
 }
 

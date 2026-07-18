@@ -1,7 +1,7 @@
 {
   "name": "aurelia",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-playtest",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "qa": "npm run build && npm run lint"
   },
   "dependencies": {
     "framer-motion": "^12.23.12",

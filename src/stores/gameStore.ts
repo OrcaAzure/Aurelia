@@ -11,6 +11,9 @@ import {
   completeExploration,
   completeTutorial,
   completeLabTutorial,
+  resetTutorials,
+  resetGameProgress,
+  cancelLabFusion,
   craftPotionCard,
   createInitialState,
   discardFromHand,
@@ -57,6 +60,9 @@ type GameStore = GameRuntimeState & {
   setPlayerName: (name: string) => void
   completeTutorial: () => void
   completeLabTutorial: () => void
+  resetTutorials: () => void
+  resetGameProgress: () => void
+  cancelLabFusion: () => void
   startLaboratory: () => void
   selectCard: (cardId: string | null) => void
   placeCardInSlot: (cardId: string, slotIndex: 0 | 1) => void
@@ -104,6 +110,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPlayerName: (name) => set(setPlayerName(get(), name)),
   completeTutorial: () => set(completeTutorial(get())),
   completeLabTutorial: () => set(completeLabTutorial(get())),
+  resetTutorials: () => set(resetTutorials(get())),
+  resetGameProgress: () => set(resetGameProgress(get())),
+  cancelLabFusion: () => set(cancelLabFusion(get())),
   startLaboratory: () => set(startLaboratory(get())),
   selectCard: (cardId) => set(selectCard(get(), cardId)),
   placeCardInSlot: (cardId, slotIndex) =>

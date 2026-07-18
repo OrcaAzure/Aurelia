@@ -12,7 +12,11 @@ import type { GameSaveData } from '@/engine/state'
 const STORAGE_KEY = 'aurelia-v1-save'
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10)
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function createDefaultSave(): GameSaveData {
@@ -69,16 +73,72 @@ export function loadGameSave(): GameSaveData {
       activeOrders: parsed.activeOrders ?? defaults.activeOrders,
       ordersDate: parsed.ordersDate ?? defaults.ordersDate,
       revealedHints: parsed.revealedHints ?? defaults.revealedHints,
+      tutorialCompleted: parsed.tutorialCompleted ?? defaults.tutorialCompleted,
+      labTutorialCompleted: parsed.labTutorialCompleted ?? defaults.labTutorialCompleted,
     }
 
     return refreshDailyState(save)
   } catch {
+    try {
+      const backup = localStorage.getItem(`${STORAGE_KEY}-backup`)
+      if (backup) {
+        const parsed = JSON.parse(backup) as Partial<GameSaveData>
+        const defaults = createDefaultSave()
+        return refreshDailyState({
+          ...defaults,
+          ...parsed,
+          discoveredRecipeIds: parsed.discoveredRecipeIds ?? defaults.discoveredRecipeIds,
+          discoveredIngredientIds:
+            parsed.discoveredIngredientIds ?? defaults.discoveredIngredientIds,
+          journalEntries: parsed.journalEntries ?? defaults.journalEntries,
+          ownedIngredientIds: parsed.ownedIngredientIds ?? defaults.ownedIngredientIds,
+          ownedTechniqueIds: parsed.ownedTechniqueIds ?? defaults.ownedTechniqueIds,
+          playerDeck: (parsed.playerDeck ?? defaults.playerDeck).filter(
+            (id) => id !== GAME_CONFIG.residueCardId,
+          ),
+          potions: parsed.potions ?? defaults.potions,
+          recipeMastery: parsed.recipeMastery ?? defaults.recipeMastery,
+          activeOrders: parsed.activeOrders ?? defaults.activeOrders,
+          ordersDate: parsed.ordersDate ?? defaults.ordersDate,
+          revealedHints: parsed.revealedHints ?? defaults.revealedHints,
+          tutorialCompleted: parsed.tutorialCompleted ?? defaults.tutorialCompleted,
+          labTutorialCompleted: parsed.labTutorialCompleted ?? defaults.labTutorialCompleted,
+        })
+      }
+    } catch {
+      // fall through to default save
+    }
     return createDefaultSave()
   }
 }
 
 export function saveGameSave(save: GameSaveData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(save))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(save))
+    localStorage.setItem(`${STORAGE_KEY}-backup`, JSON.stringify(save))
+  } catch (error) {
+    console.warn('Aurelia: could not save progress to localStorage.', error)
+  }
+}
+
+export function resetGameSave(playerName?: string): GameSaveData {
+  const save = createDefaultSave()
+  if (playerName?.trim()) {
+    save.playerName = playerName.trim()
+  }
+  saveGameSave(save)
+  return save
+}
+
+export function clearTutorialFlags(): GameSaveData {
+  const save = loadGameSave()
+  const next = {
+    ...save,
+    tutorialCompleted: false,
+    labTutorialCompleted: false,
+  }
+  saveGameSave(next)
+  return next
 }
 
 export function refreshDailyState(save: GameSaveData): GameSaveData {

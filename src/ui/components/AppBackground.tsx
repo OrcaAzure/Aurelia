@@ -1,5 +1,11 @@
+import { lazy, Suspense } from 'react'
 import { useGameStore } from '@/stores/gameStore'
-import { Ferrofluid } from '@/ui/components/Ferrofluid'
+
+const Ferrofluid = lazy(() =>
+  import('@/ui/components/Ferrofluid').then((module) => ({
+    default: module.Ferrofluid,
+  })),
+)
 
 const AURELIA_FLUID_COLORS: string[] = ['#c47a2c', '#e8a84a', '#3d5a3e', '#6b8cae']
 
@@ -11,24 +17,26 @@ export function AppBackground() {
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-ink">
       {showFluid && (
         <>
-          <Ferrofluid
-            colors={AURELIA_FLUID_COLORS}
-            speed={0.45}
-            scale={1.6}
-            turbulence={0.9}
-            fluidity={0.12}
-            rimWidth={0.22}
-            sharpness={2.5}
-            shimmer={1.4}
-            glow={1.8}
-            flowDirection="down"
-            opacity={0.85}
-            mouseInteraction
-            mouseStrength={0.9}
-            mouseRadius={0.3}
-            mouseDampening={0.18}
-            mixBlendMode="screen"
-          />
+          <Suspense fallback={null}>
+            <Ferrofluid
+              colors={AURELIA_FLUID_COLORS}
+              speed={0.45}
+              scale={1.6}
+              turbulence={0.9}
+              fluidity={0.12}
+              rimWidth={0.22}
+              sharpness={2.5}
+              shimmer={1.4}
+              glow={1.8}
+              flowDirection="down"
+              opacity={0.85}
+              mouseInteraction
+              mouseStrength={0.9}
+              mouseRadius={0.3}
+              mouseDampening={0.18}
+              mixBlendMode="screen"
+            />
+          </Suspense>
           <div
             className="absolute inset-0"
             style={{

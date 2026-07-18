@@ -20,7 +20,7 @@ export function LabDeckPanel({
   const drawTitle = !canDraw
     ? 'Deck and discard are empty'
     : deskFull
-      ? 'Desk full — brew ingredients first'
+      ? 'Hand full — brew ingredients first'
       : 'Draw a card'
 
   return (
@@ -44,7 +44,7 @@ export function LabDeckPanel({
           <div className="pointer-events-none absolute right-0 top-2 h-[4.75rem] w-[3.5rem] translate-x-1 rounded-md border border-amber/15 bg-[#2a1f16]/90" />
         </div>
         <span className="mt-2 text-center text-[10px] uppercase leading-relaxed tracking-widest text-parchment/55 group-enabled:group-hover:text-amber-light/80">
-          {canDraw ? (deskFull ? 'Desk full' : 'Draw') : 'Empty'}
+          {canDraw ? (deskFull ? 'Hand full' : 'Draw') : 'Empty'}
         </span>
       </button>
 
